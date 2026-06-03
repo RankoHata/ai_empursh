@@ -137,23 +137,24 @@ def _timestamp() -> str:
 async def _synthesize_and_send(websocket: WebSocket, text: str):
     """Background task: synthesize speech and send URL to frontend."""
     try:
-        await websocket.send_json({
-            "type": "avatar_state",
-            "payload": {"action": "speaking"},
-        })
+        await _ws_send_safe(websocket, "avatar_state", {"action": "speaking"})
         mp3_path = await voice_tts.synthesize(text)
         filename = Path(mp3_path).name
-        await websocket.send_json({
-            "type": "play_audio",
-            "payload": {"url": f"http://127.0.0.1:8765/audio/{filename}"},
-        })
+        await _ws_send_safe(websocket, "play_audio", {"url": f"http://127.0.0.1:8765/audio/{filename}"})
+    except asyncio.CancelledError:
+        logger.info("TTS task cancelled")
     except Exception as exc:
         logger.error("TTS error: %s", exc)
     finally:
-        await websocket.send_json({
-            "type": "avatar_state",
-            "payload": {"action": "idle"},
-        })
+        await _ws_send_safe(websocket, "avatar_state", {"action": "idle"})
+
+
+async def _ws_send_safe(websocket: WebSocket, msg_type: str, payload: dict):
+    """Send a WebSocket message, ignoring errors if connection is closed."""
+    try:
+        await websocket.send_json({"type": msg_type, "payload": payload})
+    except Exception:
+        pass  # WebSocket already closed, ignore
 
 
 @app.websocket("/ws")
@@ -167,6 +168,7 @@ async def websocket_chat(websocket: WebSocket):
         model_name=MODEL_CFG["model_name"],
         max_rounds=CHAT_CFG["max_history_rounds"],
     )
+    tts_task: asyncio.Task | None = None
 
     try:
         while True:
@@ -191,6 +193,11 @@ async def websocket_chat(websocket: WebSocket):
                         "payload": {"message": "Empty message"},
                     })
                     continue
+
+                # Cancel any in-progress TTS
+                if tts_task and not tts_task.done():
+                    tts_task.cancel()
+                    tts_task = None
 
                 # Skill routing: detect /command and inject system_prompt + context
                 active_skill = None
@@ -240,9 +247,12 @@ async def websocket_chat(websocket: WebSocket):
                         "payload": {"full_content": full, "partial": partial},
                     })
 
-                    # Auto TTS: synthesize reply as speech (fire-and-forget)
+                    # Auto TTS: synthesize reply as speech
                     if full.strip():
-                        asyncio.create_task(_synthesize_and_send(websocket, full))
+                        # Cancel any previous TTS before starting new one
+                        if tts_task and not tts_task.done():
+                            tts_task.cancel()
+                        tts_task = asyncio.create_task(_synthesize_and_send(websocket, full))
 
                     # If a skill was used, send markdown preview
                     if active_skill:
@@ -256,6 +266,9 @@ async def websocket_chat(websocket: WebSocket):
 
             elif msg_type == "stop":
                 session.request_stop()
+                if tts_task and not tts_task.done():
+                    tts_task.cancel()
+                    tts_task = None
                 logger.info("Stop requested by client")
 
             # --- Voice handlers ---
@@ -403,6 +416,8 @@ async def websocket_chat(websocket: WebSocket):
     except Exception as exc:
         logger.error("Unexpected error in WebSocket handler: %s", exc)
     finally:
+        if tts_task and not tts_task.done():
+            tts_task.cancel()
         logger.info("Cleaning up session")
 
 
