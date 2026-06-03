@@ -72,6 +72,12 @@ export default function App() {
       case 'voice_result': {
         const text = (payload.text || '').trim();
         if (text) {
+          // Stop any playing TTS audio
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+            audioRef.current = null;
+          }
           addUserMsgAndSend(text);
           // Also send via WebSocket to trigger AI reply
           if (sendRef.current) sendRef.current('chat', { message: text });
@@ -82,6 +88,12 @@ export default function App() {
       case 'play_audio': {
         const url = payload.url;
         if (url) {
+          // Stop any currently playing audio (prevents overlap)
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+            audioRef.current = null;
+          }
           const audio = new Audio(url);
           audioRef.current = audio;
           audio.play().catch((e) => console.error('Audio play failed:', e));
@@ -141,6 +153,12 @@ export default function App() {
   sendRef.current = send;
 
   const handleSend = useCallback((text) => {
+    // Stop any playing TTS audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
     addUserMsgAndSend(text);
     const sent = send('chat', { message: text });
     if (!sent) {
@@ -151,7 +169,15 @@ export default function App() {
     }
   }, [send, addUserMsgAndSend]);
 
-  const handleStop = useCallback(() => send('stop', {}), [send]);
+  const handleStop = useCallback(() => {
+    // Stop any playing TTS audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+    send('stop', {});
+  }, [send]);
 
   const handleSaveNote = useCallback((content) => {
     setSaveModal({ content });
