@@ -22,3 +22,6 @@ Thumbs.db
 
 # Config (contains API keys)
 backend/config.yaml
+
+# Database (user data)
+backend/data/
