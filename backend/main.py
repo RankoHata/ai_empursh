@@ -10,6 +10,9 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+
+# Bypass system proxy for DeepSeek API (direct connection)
+os.environ["NO_PROXY"] = "api.deepseek.com"
 from pathlib import Path
 from typing import Optional
 
