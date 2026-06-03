@@ -1,7 +1,7 @@
 import React from 'react';
 
-export default function MessageBubble({ message, onContextMenu }) {
-  const { role, content, isStreaming, timestamp } = message;
+export default function MessageBubble({ message }) {
+  const { id, role, content, isStreaming, timestamp } = message;
   const label = role === 'user' ? '你' : '助理';
 
   const bubbleClass = [
@@ -19,7 +19,7 @@ export default function MessageBubble({ message, onContextMenu }) {
     : '';
 
   return (
-    <div className={bubbleClass} onContextMenu={onContextMenu}>
+    <div className={bubbleClass} data-msg-id={id}>
       <span className="bubble-label">{label}</span>
       <div className={contentClass}>{content}</div>
       {timeStr && <span className="bubble-timestamp">{timeStr}</span>}

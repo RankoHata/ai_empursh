@@ -3,20 +3,51 @@ import MessageBubble from './MessageBubble';
 
 export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSaveNote }) {
   const [input, setInput] = useState('');
-  const [ctxMenu, setCtxMenu] = useState(null); // { x, y, content } or null
+  const [ctxMenu, setCtxMenu] = useState(null);
   const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Close context menu on any click
+  // Native contextmenu handler via event delegation — more reliable in Electron
   useEffect(() => {
-    const close = () => setCtxMenu(null);
-    if (ctxMenu) {
-      window.addEventListener('click', close);
-      return () => window.removeEventListener('click', close);
-    }
+    const area = messagesRef.current;
+    if (!area) return;
+
+    const handler = (e) => {
+      const bubble = e.target.closest('[data-msg-id]');
+      if (!bubble) return;
+      e.preventDefault();
+      const msgId = parseInt(bubble.dataset.msgId, 10);
+      const msg = messages.find((m) => m.id === msgId);
+      console.log('[ChatPanel] right-click on msg:', msgId, 'role:', msg?.role);
+      if (msg && msg.role === 'assistant' && msg.content && !msg.isStreaming) {
+        setCtxMenu({ x: e.clientX, y: e.clientY, content: msg.content });
+        console.log('[ChatPanel] context menu opened at', e.clientX, e.clientY);
+      }
+    };
+
+    area.addEventListener('contextmenu', handler);
+    return () => area.removeEventListener('contextmenu', handler);
+  }, [messages]);
+
+  // Close context menu on any click (delay to allow menu item onClick to fire first)
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => {
+      console.log('[ChatPanel] closing context menu');
+      setCtxMenu(null);
+    };
+    // Use setTimeout to ensure menu button onClick fires before close
+    const timer = setTimeout(() => {
+      window.addEventListener('click', close, { once: true });
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', close);
+    };
   }, [ctxMenu]);
 
   const handleSend = () => {
@@ -33,15 +64,8 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSav
     }
   };
 
-  const handleContextMenu = (e, msg) => {
-    e.preventDefault();
-    // Only allow saving assistant messages with content
-    if (msg.role === 'assistant' && msg.content && !msg.isStreaming) {
-      setCtxMenu({ x: e.clientX, y: e.clientY, content: msg.content });
-    }
-  };
-
   const handleSaveAsNote = () => {
+    console.log('[ChatPanel] save as note clicked, content:', ctxMenu?.content?.slice(0, 50));
     if (ctxMenu && onSaveNote) {
       onSaveNote(ctxMenu.content);
     }
@@ -50,23 +74,18 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSav
 
   return (
     <div className="chat-panel">
-      <div className="messages-area">
+      <div className="messages-area" ref={messagesRef}>
         {messages.length === 0 && (
           <div className="messages-empty">
             <span>向 AI 助理发送消息开始对话</span>
           </div>
         )}
         {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            onContextMenu={(e) => handleContextMenu(e, msg)}
-          />
+          <MessageBubble key={msg.id} message={msg} />
         ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* Context menu */}
       {ctxMenu && (
         <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
           <button className="context-menu-item" onClick={handleSaveAsNote}>
