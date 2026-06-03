@@ -5,6 +5,7 @@ import TabBar from './components/TabBar';
 import ChatPanel from './components/ChatPanel';
 import NotesPanel from './components/NotesPanel';
 import AvatarStatus from './components/AvatarStatus';
+import MarkdownPreview from './components/MarkdownPreview';
 
 let nextId = 1;
 
@@ -17,6 +18,7 @@ export default function App() {
   const [saveTags, setSaveTags] = useState('');
   const [avatarState, setAvatarState] = useState('idle');
   const [alwaysOn, setAlwaysOn] = useState(false);
+  const [markdownPreview, setMarkdownPreview] = useState(null); // {content, suggestedFilename} or null
   const audioRef = useRef(null);
   const sendRef = useRef(null);
 
@@ -114,6 +116,17 @@ export default function App() {
         alert(`笔记已导出到:\n${payload.file_path}`);
         break;
 
+      case 'markdown_preview':
+        setMarkdownPreview({
+          content: payload.content || '',
+          suggestedFilename: payload.suggested_filename || 'export.md',
+        });
+        break;
+
+      case 'file_saved':
+        alert(`文件已保存到:\n${payload.file_path}`);
+        break;
+
       case 'error': {
         console.error('Server error:', payload.message);
         break;
@@ -166,6 +179,13 @@ export default function App() {
   const handleDeleteNote = useCallback((id) => send('delete_note', { note_id: id }), [send]);
   const handleExportNotes = useCallback((ids) => send('export_notes', { note_ids: ids }), [send]);
 
+  const handleSaveMarkdown = useCallback((content, filename) => {
+    send('save_file', { content, filename });
+    setMarkdownPreview(null);
+  }, [send]);
+
+  const handleCancelPreview = useCallback(() => setMarkdownPreview(null), []);
+
   return (
     <div className="app-container">
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -210,6 +230,15 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {markdownPreview && (
+        <MarkdownPreview
+          content={markdownPreview.content}
+          suggestedFilename={markdownPreview.suggestedFilename}
+          onSave={handleSaveMarkdown}
+          onCancel={handleCancelPreview}
+        />
       )}
     </div>
   );

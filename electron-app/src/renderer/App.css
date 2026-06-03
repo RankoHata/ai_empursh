@@ -543,3 +543,34 @@ html, body, #root {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
 }
+
+/* === Markdown Preview === */
+.markdown-modal {
+  width: 640px;
+  max-width: 95vw;
+  max-height: 80vh;
+}
+.markdown-preview-content {
+  padding: 12px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.markdown-preview-content pre {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+.markdown-save-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.markdown-save-row .modal-input {
+  flex: 1;
+}
