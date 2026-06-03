@@ -189,3 +189,19 @@ date: 2026-06-04
 4. 按标签筛选笔记
 5. 选中一条或多条笔记 → 导出 → 本地生成 `.md` 文件
 6. 删除笔记后列表更新
+
+---
+
+## 11. 实现过程中的 Bug 与修复
+
+| # | 问题 | 原因 | 修复 | 提交 |
+|---|------|------|------|------|
+| 1 | 右键消息无反应 | `display: contents` 使包裹 div 无法接收鼠标事件；React `onContextMenu` 在 Electron 中不可靠 | 改用原生 `addEventListener('contextmenu')` + `closest('[data-msg-id]')` 事件委托 | `6804579` |
+| 2 | `prompt() is and will not be supported` | Electron 渲染进程不支持 `window.prompt()` | 替换为自定义 React 弹窗（遮罩 + 内容预览 + 标签输入 + 保存/取消按钮） | `c60ade5` |
+| 3 | 右键菜单点击"保存为笔记"后菜单先关闭导致点击无效 | 全局 click 监听器在 onClick 之前触发 | 用 `setTimeout(0)` 延迟绑定 click 关闭监听器 | `6804579` |
+
+### 经验教训
+
+- Electron 渲染进程中避免使用 `window.prompt()`、`window.alert()`、`window.confirm()` 等原生弹窗 API，用 React 组件替代
+- 右键菜单优先使用原生 DOM 事件 + 事件委托，而非 React 合成事件
+- 事件委托需要目标元素上有 data 属性（如 `data-msg-id`）来定位数据
