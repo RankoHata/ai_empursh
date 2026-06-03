@@ -13,7 +13,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('chat');
   const [notes, setNotes] = useState([]);
 
-  // Use refs for values that onMessage closure needs to see without re-subscribing
+  // Save-as-note modal state
+  const [saveModal, setSaveModal] = useState(null); // { content } or null
+  const [saveTags, setSaveTags] = useState('');
+
   const messagesRef = useRef(messages);
   const isStreamingRef = useRef(isStreaming);
   messagesRef.current = messages;
@@ -21,19 +24,12 @@ export default function App() {
 
   const handleMessage = useCallback((type, payload) => {
     switch (type) {
-      // --- Chat messages ---
       case 'message_chunk': {
         const chunk = payload.content || '';
         if (!isStreamingRef.current) {
           setMessages((prev) => [
             ...prev,
-            {
-              id: nextId++,
-              role: 'assistant',
-              content: chunk,
-              isStreaming: true,
-              timestamp: Date.now(),
-            },
+            { id: nextId++, role: 'assistant', content: chunk, isStreaming: true, timestamp: Date.now() },
           ]);
           setIsStreaming(true);
         } else {
@@ -41,10 +37,7 @@ export default function App() {
             const updated = [...prev];
             const last = updated[updated.length - 1];
             if (last && last.isStreaming) {
-              updated[updated.length - 1] = {
-                ...last,
-                content: last.content + chunk,
-              };
+              updated[updated.length - 1] = { ...last, content: last.content + chunk };
             }
             return updated;
           });
@@ -57,10 +50,7 @@ export default function App() {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           if (last && last.isStreaming) {
-            updated[updated.length - 1] = {
-              ...last,
-              isStreaming: false,
-            };
+            updated[updated.length - 1] = { ...last, isStreaming: false };
           }
           return updated;
         });
@@ -68,13 +58,12 @@ export default function App() {
         break;
       }
 
-      // --- Notes messages ---
       case 'notes_list':
         setNotes(payload.notes || []);
         break;
 
       case 'note_saved':
-        // Refresh notes list after saving
+        // NotesPanel will refresh on tab switch via onGetNotes
         break;
 
       case 'note_deleted':
@@ -93,13 +82,7 @@ export default function App() {
         console.error('Server error:', payload.message);
         setMessages((prev) => [
           ...prev,
-          {
-            id: nextId++,
-            role: 'assistant',
-            content: `错误: ${payload.message}`,
-            isStreaming: false,
-            timestamp: Date.now(),
-          },
+          { id: nextId++, role: 'assistant', content: `错误: ${payload.message}`, isStreaming: false, timestamp: Date.now() },
         ]);
         setIsStreaming(false);
         break;
@@ -113,76 +96,41 @@ export default function App() {
   const { connectionStatus, send } = useWebSocket({ onMessage: handleMessage });
 
   // --- Chat actions ---
-  const handleSend = useCallback(
-    (text) => {
-      const userMsg = {
-        id: nextId++,
-        role: 'user',
-        content: text,
-        isStreaming: false,
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, userMsg]);
-
-      const sent = send('chat', { message: text });
-      if (!sent) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId++,
-            role: 'assistant',
-            content: '无法发送消息：后端未连接',
-            isStreaming: false,
-            timestamp: Date.now(),
-          },
-        ]);
-      }
-    },
-    [send],
-  );
-
-  const handleStop = useCallback(() => {
-    send('stop', {});
+  const handleSend = useCallback((text) => {
+    const userMsg = { id: nextId++, role: 'user', content: text, isStreaming: false, timestamp: Date.now() };
+    setMessages((prev) => [...prev, userMsg]);
+    const sent = send('chat', { message: text });
+    if (!sent) {
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId++, role: 'assistant', content: '无法发送消息：后端未连接', isStreaming: false, timestamp: Date.now() },
+      ]);
+    }
   }, [send]);
 
-  const handleSaveNote = useCallback(
-    (content) => {
-      const tagStr = window.prompt('输入标签（用空格或逗号分隔）:', '');
-      if (tagStr === null) return; // user cancelled
-      const tags = tagStr
-        .split(/[\s,]+/)
-        .map((t) => t.trim())
-        .filter(Boolean);
-      send('add_note', { content, tags });
-    },
-    [send],
-  );
+  const handleStop = useCallback(() => send('stop', {}), [send]);
+
+  // Open save-as-note modal (instead of prompt())
+  const handleSaveNote = useCallback((content) => {
+    setSaveModal({ content });
+    setSaveTags('');
+  }, []);
+
+  const handleConfirmSave = useCallback(() => {
+    if (!saveModal) return;
+    const tags = saveTags
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    send('add_note', { content: saveModal.content, tags });
+    setSaveModal(null);
+  }, [saveModal, saveTags, send]);
 
   // --- Notes actions ---
-  const handleGetNotes = useCallback(() => {
-    send('get_notes', {});
-  }, [send]);
-
-  const handleSearchNotes = useCallback(
-    (query, tags) => {
-      send('search_notes', { query, tags });
-    },
-    [send],
-  );
-
-  const handleDeleteNote = useCallback(
-    (id) => {
-      send('delete_note', { note_id: id });
-    },
-    [send],
-  );
-
-  const handleExportNotes = useCallback(
-    (ids) => {
-      send('export_notes', { note_ids: ids });
-    },
-    [send],
-  );
+  const handleGetNotes = useCallback(() => send('get_notes', {}), [send]);
+  const handleSearchNotes = useCallback((q, t) => send('search_notes', { query: q, tags: t }), [send]);
+  const handleDeleteNote = useCallback((id) => send('delete_note', { note_id: id }), [send]);
+  const handleExportNotes = useCallback((ids) => send('export_notes', { note_ids: ids }), [send]);
 
   return (
     <div className="app-container">
@@ -204,6 +152,29 @@ export default function App() {
           onDelete={handleDeleteNote}
           onExport={handleExportNotes}
         />
+      )}
+
+      {/* Save-as-note modal */}
+      {saveModal && (
+        <div className="modal-overlay" onClick={() => setSaveModal(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <h3>💾 保存为笔记</h3>
+            <div className="modal-preview">{saveModal.content.slice(0, 300)}</div>
+            <input
+              className="modal-input"
+              type="text"
+              placeholder="输入标签（空格分隔）"
+              value={saveTags}
+              onChange={(e) => setSaveTags(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmSave(); }}
+              autoFocus
+            />
+            <div className="modal-buttons">
+              <button className="btn-send" onClick={handleConfirmSave}>保存</button>
+              <button className="btn-modal-cancel" onClick={() => setSaveModal(null)}>取消</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
