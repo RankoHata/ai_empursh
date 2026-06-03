@@ -21,6 +21,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from openai import AsyncOpenAI
 
 from agent.chat import ChatSession
+from db import notes as notes_db
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -164,6 +165,68 @@ async def websocket_chat(websocket: WebSocket):
             elif msg_type == "stop":
                 session.request_stop()
                 logger.info("Stop requested by client")
+
+            # --- Notes handlers ---
+            elif msg_type == "add_note":
+                try:
+                    note = notes_db.add_note(
+                        content=payload.get("content", ""),
+                        tags=payload.get("tags", []),
+                    )
+                    await websocket.send_json({
+                        "type": "note_saved",
+                        "payload": {"note": note},
+                    })
+                except Exception as exc:
+                    await websocket.send_json({
+                        "type": "error",
+                        "payload": {"message": f"Failed to save note: {exc}"},
+                    })
+
+            elif msg_type == "get_notes":
+                all_notes = notes_db.get_all_notes()
+                await websocket.send_json({
+                    "type": "notes_list",
+                    "payload": {"notes": all_notes},
+                })
+
+            elif msg_type == "search_notes":
+                results = notes_db.search_notes(
+                    query=payload.get("query", ""),
+                    tags=payload.get("tags", []),
+                )
+                await websocket.send_json({
+                    "type": "search_results",
+                    "payload": {"results": results},
+                })
+
+            elif msg_type == "delete_note":
+                note_id = payload.get("note_id")
+                if note_id is not None:
+                    ok = notes_db.delete_note(int(note_id))
+                    await websocket.send_json({
+                        "type": "note_deleted",
+                        "payload": {"note_id": note_id, "deleted": ok},
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "payload": {"message": "Missing note_id"},
+                    })
+
+            elif msg_type == "export_notes":
+                note_ids = payload.get("note_ids", [])
+                if note_ids:
+                    output_path = notes_db.export_notes(note_ids)
+                    await websocket.send_json({
+                        "type": "notes_exported",
+                        "payload": {"file_path": output_path},
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "payload": {"message": "No note_ids provided"},
+                    })
 
             else:
                 await websocket.send_json({
