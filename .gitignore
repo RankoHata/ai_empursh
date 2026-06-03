@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+
+# Build output
+electron-app/.vite/
+electron-app/out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Superpowers
+.superpowers/
+
+# Config (contains API keys)
+backend/config.yaml
