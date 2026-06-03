@@ -12,7 +12,12 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
+os.environ["http_proxy"] = "http://127.0.0.1:7890"
+os.environ["https_proxy"] = "http://127.0.0.1:7890"
+os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
+os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
 # Bypass system proxy for DeepSeek API (direct connection)
+os.environ["no_proxy"] = "api.deepseek.com"
 os.environ["NO_PROXY"] = "api.deepseek.com"
 from pathlib import Path
 from typing import Optional
@@ -25,6 +30,10 @@ from agent.chat import ChatSession
 from db import notes as notes_db
 from voice import stt
 from voice import tts as voice_tts
+from agent import skills as skills_lib
+
+# Load skills on startup
+SKILLS = skills_lib.load_skills()
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -119,6 +128,12 @@ async def serve_audio(filename: str):
     return FileResponse(file_path, media_type="audio/mpeg")
 
 
+def _timestamp() -> str:
+    """Return a short timestamp string for filenames."""
+    from datetime import datetime
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
 async def _synthesize_and_send(websocket: WebSocket, text: str):
     """Background task: synthesize speech and send URL to frontend."""
     try:
@@ -177,7 +192,30 @@ async def websocket_chat(websocket: WebSocket):
                     })
                     continue
 
-                session.add_user_message(user_text)
+                # Skill routing: detect /command and inject system_prompt + context
+                active_skill = None
+                augmented_text = user_text
+                for command, skill in SKILLS.items():
+                    if user_text.startswith(command):
+                        active_skill = skill
+                        logger.info("Skill activated: %s", skill["name"])
+                        # Build augmented prompt with notes if skill uses notes tools
+                        context_parts = [skill["system_prompt"]]
+                        if any(t in skill["allowed_tools"] for t in ("search_notes", "get_notes")):
+                            all_notes = notes_db.get_all_notes()
+                            if all_notes:
+                                context_parts.append("\n\n## 当前所有笔记\n")
+                                for n in all_notes:
+                                    tags_str = ", ".join(n["tags"]) if n["tags"] else "无"
+                                    context_parts.append(
+                                        f"- [{n['id']}] {n['created_at']} #{tags_str}\n  {n['content']}"
+                                    )
+                                context_parts.append("\n请根据以上笔记整理生成文档。")
+                        context_parts.append(f"\n## 用户指令\n{user_text}")
+                        augmented_text = "\n".join(context_parts)
+                        break
+
+                session.add_user_message(augmented_text)
                 session.clear_stop()
 
                 collected_chunks: list[str] = []
@@ -205,6 +243,16 @@ async def websocket_chat(websocket: WebSocket):
                     # Auto TTS: synthesize reply as speech (fire-and-forget)
                     if full.strip():
                         asyncio.create_task(_synthesize_and_send(websocket, full))
+
+                    # If a skill was used, send markdown preview
+                    if active_skill:
+                        await websocket.send_json({
+                            "type": "markdown_preview",
+                            "payload": {
+                                "content": full,
+                                "suggested_filename": f"{active_skill['name']}_{_timestamp()}.md",
+                            },
+                        })
 
             elif msg_type == "stop":
                 session.request_stop()
@@ -267,6 +315,19 @@ async def websocket_chat(websocket: WebSocket):
                 await websocket.send_json({
                     "type": "voice_status",
                     "payload": {"always_on": always_on, "recording": False},
+                })
+
+            elif msg_type == "save_file":
+                content = payload.get("content", "")
+                filename = payload.get("filename", f"export_{_timestamp()}.md")
+                output_dir = Path(os.path.expanduser("~/Desktop"))
+                output_dir.mkdir(parents=True, exist_ok=True)
+                file_path = output_dir / filename
+                file_path.write_text(content, encoding="utf-8")
+                logger.info("File saved: %s", file_path)
+                await websocket.send_json({
+                    "type": "file_saved",
+                    "payload": {"file_path": str(file_path)},
                 })
 
             # --- Notes handlers ---
