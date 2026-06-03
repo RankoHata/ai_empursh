@@ -57,13 +57,11 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSav
           </div>
         )}
         {messages.map((msg) => (
-          <div
+          <MessageBubble
             key={msg.id}
+            message={msg}
             onContextMenu={(e) => handleContextMenu(e, msg)}
-            style={{ display: 'contents' }}
-          >
-            <MessageBubble message={msg} />
-          </div>
+          />
         ))}
         <div ref={bottomRef} />
       </div>
