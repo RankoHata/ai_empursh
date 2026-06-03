@@ -6,6 +6,7 @@ Stop with:   Ctrl+C
 """
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -22,6 +23,8 @@ from openai import AsyncOpenAI
 
 from agent.chat import ChatSession
 from db import notes as notes_db
+from voice import stt
+from voice import tts as voice_tts
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -96,9 +99,45 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AI Companion Backend", lifespan=lifespan)
 
 
+from fastapi.responses import FileResponse
+
+TEMP_DIR = Path(__file__).parent / "temp"
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+
 @app.get("/")
 async def health_check():
     return {"status": "running", "model": MODEL_CFG["model_name"]}
+
+
+@app.get("/audio/{filename}")
+async def serve_audio(filename: str):
+    """Serve generated audio files to the frontend."""
+    file_path = TEMP_DIR / filename
+    if not file_path.exists():
+        return {"error": "File not found"}, 404
+    return FileResponse(file_path, media_type="audio/mpeg")
+
+
+async def _synthesize_and_send(websocket: WebSocket, text: str):
+    """Background task: synthesize speech and send path to frontend."""
+    try:
+        await websocket.send_json({
+            "type": "avatar_state",
+            "payload": {"action": "speaking"},
+        })
+        mp3_path = await voice_tts.synthesize(text)
+        await websocket.send_json({
+            "type": "play_audio",
+            "payload": {"file_path": mp3_path},
+        })
+    except Exception as exc:
+        logger.error("TTS error: %s", exc)
+    finally:
+        await websocket.send_json({
+            "type": "avatar_state",
+            "payload": {"action": "idle"},
+        })
 
 
 @app.websocket("/ws")
@@ -162,9 +201,72 @@ async def websocket_chat(websocket: WebSocket):
                         "payload": {"full_content": full, "partial": partial},
                     })
 
+                    # Auto TTS: synthesize reply as speech (fire-and-forget)
+                    if full.strip():
+                        asyncio.create_task(_synthesize_and_send(websocket, full))
+
             elif msg_type == "stop":
                 session.request_stop()
                 logger.info("Stop requested by client")
+
+            # --- Voice handlers ---
+            elif msg_type == "voice_input":
+                audio_b64 = payload.get("audio_data", "")
+                if not audio_b64:
+                    await websocket.send_json({
+                        "type": "error",
+                        "payload": {"message": "Missing audio_data"},
+                    })
+                    continue
+
+                try:
+                    # Decode base64 to WAV
+                    audio_bytes = base64.b64decode(audio_b64)
+                    temp_dir = Path(__file__).parent / "temp"
+                    temp_dir.mkdir(parents=True, exist_ok=True)
+                    wav_path = temp_dir / f"recording_{os.urandom(6).hex()}.wav"
+                    wav_path.write_bytes(audio_bytes)
+                    logger.info("Received voice input: %d bytes", len(audio_bytes))
+
+                    await websocket.send_json({
+                        "type": "avatar_state",
+                        "payload": {"action": "thinking"},
+                    })
+
+                    # Transcribe
+                    text = await asyncio.to_thread(stt.transcribe, str(wav_path))
+                    logger.info("Voice transcribed: %s", text[:100])
+
+                    await websocket.send_json({
+                        "type": "voice_result",
+                        "payload": {"text": text},
+                    })
+                    await websocket.send_json({
+                        "type": "avatar_state",
+                        "payload": {"action": "idle"},
+                    })
+
+                    # Clean up temp file
+                    wav_path.unlink(missing_ok=True)
+
+                except Exception as exc:
+                    logger.error("Voice processing error: %s", exc)
+                    await websocket.send_json({
+                        "type": "error",
+                        "payload": {"message": f"Voice error: {exc}"},
+                    })
+                    await websocket.send_json({
+                        "type": "avatar_state",
+                        "payload": {"action": "idle"},
+                    })
+
+            elif msg_type == "voice_mode":
+                always_on = payload.get("always_on", False)
+                logger.info("Voice mode: always_on=%s", always_on)
+                await websocket.send_json({
+                    "type": "voice_status",
+                    "payload": {"always_on": always_on, "recording": False},
+                })
 
             # --- Notes handlers ---
             elif msg_type == "add_note":
