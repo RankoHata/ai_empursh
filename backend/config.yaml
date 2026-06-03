@@ -1,0 +1,12 @@
+model:
+  base_url: "https://api.deepseek.com/v1"
+  api_key: "sk-your-key-here"
+  model_name: "deepseek-chat"
+  max_tokens: 4096
+
+server:
+  host: "127.0.0.1"
+  port: 8765
+
+chat:
+  max_history_rounds: 20
