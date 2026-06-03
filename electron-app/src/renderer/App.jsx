@@ -4,6 +4,7 @@ import StatusBar from './components/StatusBar';
 import TabBar from './components/TabBar';
 import ChatPanel from './components/ChatPanel';
 import NotesPanel from './components/NotesPanel';
+import AvatarStatus from './components/AvatarStatus';
 
 let nextId = 1;
 
@@ -12,15 +13,23 @@ export default function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
   const [notes, setNotes] = useState([]);
-
-  // Save-as-note modal state
-  const [saveModal, setSaveModal] = useState(null); // { content } or null
+  const [saveModal, setSaveModal] = useState(null);
   const [saveTags, setSaveTags] = useState('');
+  const [avatarState, setAvatarState] = useState('idle');
+  const [alwaysOn, setAlwaysOn] = useState(false);
+  const audioRef = useRef(null);
+  const sendRef = useRef(null);
 
   const messagesRef = useRef(messages);
   const isStreamingRef = useRef(isStreaming);
   messagesRef.current = messages;
   isStreamingRef.current = isStreaming;
+
+  const addUserMsgAndSend = useCallback((text) => {
+    const userMsg = { id: nextId++, role: 'user', content: text, isStreaming: false, timestamp: Date.now() };
+    setMessages((prev) => [...prev, userMsg]);
+    return userMsg;
+  }, []);
 
   const handleMessage = useCallback((type, payload) => {
     switch (type) {
@@ -58,12 +67,39 @@ export default function App() {
         break;
       }
 
+      case 'voice_result': {
+        const text = (payload.text || '').trim();
+        if (text) {
+          addUserMsgAndSend(text);
+          // Also send via WebSocket to trigger AI reply
+          if (sendRef.current) sendRef.current('chat', { message: text });
+        }
+        break;
+      }
+
+      case 'play_audio': {
+        const url = payload.url;
+        if (url) {
+          const audio = new Audio(url);
+          audioRef.current = audio;
+          audio.play().catch((e) => console.error('Audio play failed:', e));
+        }
+        break;
+      }
+
+      case 'avatar_state':
+        setAvatarState(payload.action || 'idle');
+        break;
+
+      case 'voice_status':
+        setAlwaysOn(payload.always_on || false);
+        break;
+
       case 'notes_list':
         setNotes(payload.notes || []);
         break;
 
       case 'note_saved':
-        // NotesPanel will refresh on tab switch via onGetNotes
         break;
 
       case 'note_deleted':
@@ -80,25 +116,19 @@ export default function App() {
 
       case 'error': {
         console.error('Server error:', payload.message);
-        setMessages((prev) => [
-          ...prev,
-          { id: nextId++, role: 'assistant', content: `错误: ${payload.message}`, isStreaming: false, timestamp: Date.now() },
-        ]);
-        setIsStreaming(false);
         break;
       }
 
       default:
         break;
     }
-  }, []);
+  }, [addUserMsgAndSend]);
 
   const { connectionStatus, send } = useWebSocket({ onMessage: handleMessage });
+  sendRef.current = send;
 
-  // --- Chat actions ---
   const handleSend = useCallback((text) => {
-    const userMsg = { id: nextId++, role: 'user', content: text, isStreaming: false, timestamp: Date.now() };
-    setMessages((prev) => [...prev, userMsg]);
+    addUserMsgAndSend(text);
     const sent = send('chat', { message: text });
     if (!sent) {
       setMessages((prev) => [
@@ -106,11 +136,10 @@ export default function App() {
         { id: nextId++, role: 'assistant', content: '无法发送消息：后端未连接', isStreaming: false, timestamp: Date.now() },
       ]);
     }
-  }, [send]);
+  }, [send, addUserMsgAndSend]);
 
   const handleStop = useCallback(() => send('stop', {}), [send]);
 
-  // Open save-as-note modal (instead of prompt())
   const handleSaveNote = useCallback((content) => {
     setSaveModal({ content });
     setSaveTags('');
@@ -118,15 +147,20 @@ export default function App() {
 
   const handleConfirmSave = useCallback(() => {
     if (!saveModal) return;
-    const tags = saveTags
-      .split(/[\s,]+/)
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const tags = saveTags.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean);
     send('add_note', { content: saveModal.content, tags });
     setSaveModal(null);
   }, [saveModal, saveTags, send]);
 
-  // --- Notes actions ---
+  const handleVoiceInput = useCallback((base64Audio) => {
+    send('voice_input', { audio_data: base64Audio });
+  }, [send]);
+
+  const handleToggleAlwaysOn = useCallback((on) => {
+    setAlwaysOn(on);
+    send('voice_mode', { always_on: on });
+  }, [send]);
+
   const handleGetNotes = useCallback(() => send('get_notes', {}), [send]);
   const handleSearchNotes = useCallback((q, t) => send('search_notes', { query: q, tags: t }), [send]);
   const handleDeleteNote = useCallback((id) => send('delete_note', { note_id: id }), [send]);
@@ -135,7 +169,8 @@ export default function App() {
   return (
     <div className="app-container">
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      <StatusBar status={connectionStatus} />
+      <StatusBar status={connectionStatus} alwaysOn={alwaysOn} onToggleAlwaysOn={handleToggleAlwaysOn} />
+      <AvatarStatus state={avatarState} />
       {activeTab === 'chat' ? (
         <ChatPanel
           messages={messages}
@@ -143,6 +178,7 @@ export default function App() {
           onSend={handleSend}
           onStop={handleStop}
           onSaveNote={handleSaveNote}
+          onVoiceInput={handleVoiceInput}
         />
       ) : (
         <NotesPanel
@@ -154,7 +190,6 @@ export default function App() {
         />
       )}
 
-      {/* Save-as-note modal */}
       {saveModal && (
         <div className="modal-overlay" onClick={() => setSaveModal(null)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>

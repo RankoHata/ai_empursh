@@ -120,16 +120,17 @@ async def serve_audio(filename: str):
 
 
 async def _synthesize_and_send(websocket: WebSocket, text: str):
-    """Background task: synthesize speech and send path to frontend."""
+    """Background task: synthesize speech and send URL to frontend."""
     try:
         await websocket.send_json({
             "type": "avatar_state",
             "payload": {"action": "speaking"},
         })
         mp3_path = await voice_tts.synthesize(text)
+        filename = Path(mp3_path).name
         await websocket.send_json({
             "type": "play_audio",
-            "payload": {"file_path": mp3_path},
+            "payload": {"url": f"http://127.0.0.1:8765/audio/{filename}"},
         })
     except Exception as exc:
         logger.error("TTS error: %s", exc)
