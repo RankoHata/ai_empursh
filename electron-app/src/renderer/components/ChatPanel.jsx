@@ -1,14 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import MessageBubble from './MessageBubble';
 
-export default function ChatPanel({ messages, isStreaming, onSend, onStop }) {
+export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSaveNote }) {
   const [input, setInput] = useState('');
+  const [ctxMenu, setCtxMenu] = useState(null); // { x, y, content } or null
   const bottomRef = useRef(null);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Close context menu on any click
+  useEffect(() => {
+    const close = () => setCtxMenu(null);
+    if (ctxMenu) {
+      window.addEventListener('click', close);
+      return () => window.removeEventListener('click', close);
+    }
+  }, [ctxMenu]);
 
   const handleSend = () => {
     const text = input.trim();
@@ -24,6 +33,21 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop }) {
     }
   };
 
+  const handleContextMenu = (e, msg) => {
+    e.preventDefault();
+    // Only allow saving assistant messages with content
+    if (msg.role === 'assistant' && msg.content && !msg.isStreaming) {
+      setCtxMenu({ x: e.clientX, y: e.clientY, content: msg.content });
+    }
+  };
+
+  const handleSaveAsNote = () => {
+    if (ctxMenu && onSaveNote) {
+      onSaveNote(ctxMenu.content);
+    }
+    setCtxMenu(null);
+  };
+
   return (
     <div className="chat-panel">
       <div className="messages-area">
@@ -33,10 +57,25 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop }) {
           </div>
         )}
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
+          <div
+            key={msg.id}
+            onContextMenu={(e) => handleContextMenu(e, msg)}
+            style={{ display: 'contents' }}
+          >
+            <MessageBubble message={msg} />
+          </div>
         ))}
         <div ref={bottomRef} />
       </div>
+
+      {/* Context menu */}
+      {ctxMenu && (
+        <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
+          <button className="context-menu-item" onClick={handleSaveAsNote}>
+            💾 保存为笔记
+          </button>
+        </div>
+      )}
 
       <div className="input-area">
         <input
@@ -45,7 +84,6 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={false}
           autoFocus
         />
         {isStreaming ? (
