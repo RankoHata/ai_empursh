@@ -132,10 +132,9 @@ export class Model extends CubismUserModel {
       const texCount = this._modelSetting.getTextureCount();
       for (let i = 0; i < texCount; i++) {
         const texFile = this._modelSetting.getTextureFileName(i);
-        const texUrl = this._modelSetting.getTextureDirectory()
-          ? new URL(this._modelSetting.getTextureDirectory() + texFile, baseUrl).href
-          : new URL(texFile, baseUrl).href;
-        this._log(`Loading texture: ${texUrl}`);
+        // Resolve relative to the model3.json's directory
+        const texUrl = new URL(texFile, baseUrl).href;
+        this._log(`Texture ${i}: file=${texFile}, url=${texUrl}`);
         const img = await loadImage(texUrl);
         const texId = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texId);
