@@ -40,7 +40,7 @@
 | `UserDataCount` | int | 用户数据条目数 |
 | `TotalUserDataSize` | int | 用户数据总大小 |
 
-**关键：** `TotalSegmentCount` 和 `TotalPointCount` 用于预分配数组。如果小于实际值，解析器会访问越界导致 `Cannot set properties of undefined` 崩溃。**安全做法：设一个远大于实际的值（如所有曲线 Segments 数组值数量之和）。**
+**关键：** `TotalSegmentCount` 和 `TotalPointCount` 用于预分配数组。如果小于实际值，解析器会访问越界导致 `Cannot set properties of undefined` 崩溃。**必须精确匹配实际段数！** Cubism 5 的 `cubismmotionjson.ts` 在解析后会校验 `actualTotalSegmentCount == Meta.TotalSegmentCount`，不匹配触发 `CSM_ASSERT`。单个 motion 不匹配只打印警告，但加载多个 motion 时断言可能导致后续解析崩溃。因此 **TotalSegmentCount 和 TotalPointCount 必须精确等于实际值**。
 
 ---
 
