@@ -1,3 +1,4 @@
+import { CubismFramework, Option as CubismOption, LogLevel } from './framework/live2dcubismframework';
 import { CubismUserModel } from './framework/model/cubismusermodel';
 import { CubismModelSettingJson } from './framework/cubismmodelsettingjson';
 import { CubismEyeBlink } from './framework/effect/cubismeyeblink';
@@ -5,6 +6,17 @@ import { CubismBreath } from './framework/effect/cubismbreath';
 import { CubismDefaultParameterId } from './framework/cubismdefaultparameterid';
 import { ACubismMotion } from './framework/motion/acubismmotion';
 import { ICubismModelSetting } from './framework/icubismmodelsetting';
+
+let _fwStarted = false;
+function ensureFramework() {
+  if (!_fwStarted) {
+    CubismFramework.startUp({
+      loggingLevel: LogLevel.LogLevel_Verbose,
+    } as CubismOption);
+    CubismFramework.initialize();
+    _fwStarted = true;
+  }
+}
 
 type LogFn = (msg: string) => void;
 
@@ -31,6 +43,7 @@ export class Model extends CubismUserModel {
   setLog(fn: LogFn): void { this._log = fn; }
 
   async setup(model3JsonUrl: string): Promise<void> {
+    ensureFramework();
     const baseUrl = window.location.origin + '/' + model3JsonUrl;
 
     // 1. Load model3.json
