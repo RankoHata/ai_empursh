@@ -10,6 +10,7 @@ export default defineConfig({
       '@framework': path.resolve(__dirname, 'src/live2d/framework'),
     },
   },
+  assetsInclude: ['**/*.moc3', '**/*.model3.json', '**/*.motion3.json'],
   build: {
     outDir: '.vite/renderer/main_window',
   },

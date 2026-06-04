@@ -75,7 +75,9 @@ export class Live2DManager {
 
     // 2. Load moc3
     const mocResp = await fetch(mocUrl);
+    onLog?.(`moc3 response: ${mocResp.status} ${mocResp.statusText}, size: ${mocResp.headers.get('content-length')}`);
     const mocBuffer = await mocResp.arrayBuffer();
+    onLog?.(`moc3 buffer: ${mocBuffer.byteLength} bytes`);
     const moc = CubismMoc.create(mocBuffer, mocBuffer.byteLength);
     if (!moc) throw new Error('Failed to load moc3');
 
