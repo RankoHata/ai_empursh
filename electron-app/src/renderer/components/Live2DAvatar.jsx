@@ -27,23 +27,18 @@ export default function Live2DAvatar({
     async function init() {
       try {
         const { Application } = await import('pixi.js');
-        const { Live2DModel, Cubism4ModelSettings } = await import('pixi-live2d-display/cubism4');
+        const { Live2DModel } = await import('pixi-live2d-display/cubism4');
 
-        // Wait for Cubism Core to be ready (loaded via script tag)
-        if (typeof window.Live2DCubismCore === 'undefined') {
-          // Poll for it
-          let attempts = 0;
-          while (typeof window.Live2DCubismCore === 'undefined' && attempts < 50) {
-            await new Promise((r) => setTimeout(r, 100));
-            attempts++;
-          }
-          if (typeof window.Live2DCubismCore === 'undefined') {
-            throw new Error('Cubism Core not found. Make sure live2dcubismcore.min.js is loaded.');
-          }
+        // Wait for Cubism Core (loaded via <script> tag in index.html)
+        let attempts = 0;
+        while (typeof window.Live2DCubismCore === 'undefined' && attempts < 50) {
+          await new Promise((r) => setTimeout(r, 100));
+          attempts++;
         }
-
-        console.log('[Live2D] Cubism Core version:', window.Live2DCubismCore.csmGetVersion());
-        console.log('[Live2D] Loading model:', modelPath);
+        if (typeof window.Live2DCubismCore === 'undefined') {
+          throw new Error('Cubism Core not found. Check assets/live2d/live2dcubismcore.min.js');
+        }
+        console.log('[Live2D] Core detected, loading model:', modelPath);
 
         const app = new Application({
           view: canvasRef.current,
@@ -55,11 +50,7 @@ export default function Live2DAvatar({
         });
         appRef.current = app;
 
-        const settings = new Cubism4ModelSettings({});
-        const model = await Live2DModel.from(modelPath, {
-          autoInteract: false,
-          settings,
-        });
+        const model = await Live2DModel.from(modelPath, { autoInteract: false });
 
         model.anchor.set(0.5, 0);
         model.x = app.screen.width / 2;
