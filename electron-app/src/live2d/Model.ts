@@ -103,17 +103,21 @@ export class Model extends CubismUserModel {
     // 8. Breath
     this._breath = CubismBreath.create();
 
-    // 9. Motions (loaded on demand via playMotion)
-    const mgCount = this._modelSetting.getMotionGroupCount();
-    for (let g = 0; g < mgCount; g++) {
-      const gName = this._modelSetting.getMotionGroupName(g);
-      const mCount = this._modelSetting.getMotionCount(gName);
-      for (let m = 0; m < mCount; m++) {
-        const mFile = this._modelSetting.getMotionFileName(gName, m);
-        const mUrl = new URL(mFile, baseUrl).href;
-        const mBuf = await xhrLoad(mUrl);
-        this.loadMotion(mBuf, mBuf.byteLength, gName);
+    // 9. Motions (may fail for old Cubism 3 models — skip gracefully)
+    try {
+      const mgCount = this._modelSetting.getMotionGroupCount();
+      for (let g = 0; g < mgCount; g++) {
+        const gName = this._modelSetting.getMotionGroupName(g);
+        const mCount = this._modelSetting.getMotionCount(gName);
+        for (let m = 0; m < mCount; m++) {
+          const mFile = this._modelSetting.getMotionFileName(gName, m);
+          const mUrl = new URL(mFile, baseUrl).href;
+          const mBuf = await xhrLoad(mUrl);
+          this.loadMotion(mBuf, mBuf.byteLength, gName);
+        }
       }
+    } catch (e) {
+      this._log(`Motion loading skipped: ${e}`);
     }
 
     this._log('Setup complete');
