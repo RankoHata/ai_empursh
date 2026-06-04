@@ -6,6 +6,7 @@ import ChatPanel from './components/ChatPanel';
 import NotesPanel from './components/NotesPanel';
 import AvatarStatus from './components/AvatarStatus';
 import MarkdownPreview from './components/MarkdownPreview';
+import SettingsPanel from './components/SettingsPanel';
 
 let nextId = 1;
 
@@ -20,7 +21,8 @@ export default function App() {
   const [alwaysOn, setAlwaysOn] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [markdownPreview, setMarkdownPreview] = useState(null); // {content, suggestedFilename} or null
+  const [markdownPreview, setMarkdownPreview] = useState(null);
+  const [config, setConfig] = useState(null);
   const audioRef = useRef(null);
   const sendRef = useRef(null);
   const ttsEnabledRef = useRef(ttsEnabled);
@@ -144,6 +146,13 @@ export default function App() {
         alert(`文件已保存到:\n${payload.file_path}`);
         break;
 
+      case 'config':
+        setConfig(payload);
+        break;
+
+      case 'config_updated':
+        break;
+
       case 'error': {
         console.error('Server error:', payload.message);
         break;
@@ -213,6 +222,14 @@ export default function App() {
 
   const handleCancelPreview = useCallback(() => setMarkdownPreview(null), []);
 
+  const handleGetConfig = useCallback(() => {
+    send('get_config', {});
+  }, [send]);
+
+  const handleUpdateConfig = useCallback((updates) => {
+    send('update_config', { updates });
+  }, [send]);
+
   return (
     <div className="app-container">
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -239,13 +256,19 @@ export default function App() {
           onSaveNote={handleSaveNote}
           onVoiceInput={handleVoiceInput}
         />
-      ) : (
+      ) : activeTab === 'notes' ? (
         <NotesPanel
           notes={notes}
           onGetNotes={handleGetNotes}
           onSearch={handleSearchNotes}
           onDelete={handleDeleteNote}
           onExport={handleExportNotes}
+        />
+      ) : (
+        <SettingsPanel
+          config={config}
+          onUpdateConfig={handleUpdateConfig}
+          onLoad={handleGetConfig}
         />
       )}
 

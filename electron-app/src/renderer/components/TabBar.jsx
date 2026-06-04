@@ -3,6 +3,7 @@ import React from 'react';
 const TABS = [
   { key: 'chat', label: '💬 聊天' },
   { key: 'notes', label: '📝 笔记' },
+  { key: 'settings', label: '⚙️ 设置' },
 ];
 
 export default function TabBar({ activeTab, onTabChange }) {

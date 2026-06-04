@@ -477,6 +477,37 @@ async def websocket_chat(websocket: WebSocket):
                     "payload": {"always_on": always_on, "recording": False},
                 })
 
+            elif msg_type == "get_config":
+                safe_cfg = {
+                    "model": {
+                        "base_url": MODEL_CFG["base_url"],
+                        "api_key": "***" + MODEL_CFG.get("api_key", "")[-4:] if len(MODEL_CFG.get("api_key", "")) > 4 else "***",
+                        "model_name": MODEL_CFG["model_name"],
+                        "max_tokens": MODEL_CFG["max_tokens"],
+                    },
+                    "voice": {"stt_model": "base", "tts_voice": "zh-CN-XiaoxiaoNeural"},
+                }
+                await websocket.send_json({"type": "config", "payload": safe_cfg})
+
+            elif msg_type == "update_config":
+                updates = payload.get("updates", {})
+                try:
+                    cfg = load_config()
+                    for key, value in updates.items():
+                        if isinstance(value, dict) and key in cfg and isinstance(cfg[key], dict):
+                            cfg[key].update(value)
+                        else:
+                            cfg[key] = value
+                    with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
+                        yaml.dump(cfg, fh, allow_unicode=True, default_flow_style=False)
+                    global MODEL_CFG
+                    MODEL_CFG = cfg["model"]
+                    await websocket.send_json({"type": "config_updated", "payload": {"success": True}})
+                except Exception as exc:
+                    await websocket.send_json({
+                        "type": "error", "payload": {"message": f"Config update failed: {exc}"},
+                    })
+
             elif msg_type == "save_file":
                 content = payload.get("content", "")
                 filename = payload.get("filename", f"export_{_timestamp()}.md")
