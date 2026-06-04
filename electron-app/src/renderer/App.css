@@ -574,3 +574,27 @@ html, body, #root {
 .markdown-save-row .modal-input {
   flex: 1;
 }
+
+/* === Speaking Bar (stop TTS) === */
+.speaking-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  background: rgba(233, 69, 96, 0.1);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.btn-stop-speaking {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: background 0.2s;
+}
+.btn-stop-speaking:hover { background: rgba(233, 69, 96, 0.2); }

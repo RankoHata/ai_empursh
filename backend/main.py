@@ -169,6 +169,7 @@ async def websocket_chat(websocket: WebSocket):
         max_rounds=CHAT_CFG["max_history_rounds"],
     )
     tts_task: asyncio.Task | None = None
+    tts_enabled = True  # per-connection TTS toggle
 
     try:
         while True:
@@ -247,9 +248,8 @@ async def websocket_chat(websocket: WebSocket):
                         "payload": {"full_content": full, "partial": partial},
                     })
 
-                    # Auto TTS: synthesize reply as speech
-                    if full.strip():
-                        # Cancel any previous TTS before starting new one
+                    # Auto TTS: synthesize reply as speech (if enabled)
+                    if full.strip() and tts_enabled:
                         if tts_task and not tts_task.done():
                             tts_task.cancel()
                         tts_task = asyncio.create_task(_synthesize_and_send(websocket, full))
@@ -321,6 +321,10 @@ async def websocket_chat(websocket: WebSocket):
                         "type": "avatar_state",
                         "payload": {"action": "idle"},
                     })
+
+            elif msg_type == "tts_enabled":
+                tts_enabled = payload.get("enabled", True)
+                logger.info("TTS enabled: %s", tts_enabled)
 
             elif msg_type == "voice_mode":
                 always_on = payload.get("always_on", False)

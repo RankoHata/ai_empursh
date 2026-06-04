@@ -18,9 +18,22 @@ export default function App() {
   const [saveTags, setSaveTags] = useState('');
   const [avatarState, setAvatarState] = useState('idle');
   const [alwaysOn, setAlwaysOn] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(true);
   const [markdownPreview, setMarkdownPreview] = useState(null); // {content, suggestedFilename} or null
   const audioRef = useRef(null);
   const sendRef = useRef(null);
+  const ttsEnabledRef = useRef(ttsEnabled);
+  ttsEnabledRef.current = ttsEnabled;
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+      setIsSpeaking(false);
+    }
+  }, []);
 
   const messagesRef = useRef(messages);
   const isStreamingRef = useRef(isStreaming);
@@ -72,31 +85,23 @@ export default function App() {
       case 'voice_result': {
         const text = (payload.text || '').trim();
         if (text) {
-          // Stop any playing TTS audio
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = '';
-            audioRef.current = null;
-          }
+          stopAudio();
           addUserMsgAndSend(text);
-          // Also send via WebSocket to trigger AI reply
           if (sendRef.current) sendRef.current('chat', { message: text });
         }
         break;
       }
 
       case 'play_audio': {
+        if (!ttsEnabledRef.current) break; // TTS disabled, skip
         const url = payload.url;
         if (url) {
-          // Stop any currently playing audio (prevents overlap)
-          if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.src = '';
-            audioRef.current = null;
-          }
+          stopAudio();
           const audio = new Audio(url);
           audioRef.current = audio;
-          audio.play().catch((e) => console.error('Audio play failed:', e));
+          audio.onended = () => { setIsSpeaking(false); };
+          audio.onpause = () => { setIsSpeaking(false); };
+          audio.play().then(() => setIsSpeaking(true)).catch((e) => console.error('Audio play failed:', e));
         }
         break;
       }
@@ -153,12 +158,7 @@ export default function App() {
   sendRef.current = send;
 
   const handleSend = useCallback((text) => {
-    // Stop any playing TTS audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-      audioRef.current = null;
-    }
+    stopAudio();
     addUserMsgAndSend(text);
     const sent = send('chat', { message: text });
     if (!sent) {
@@ -170,14 +170,9 @@ export default function App() {
   }, [send, addUserMsgAndSend]);
 
   const handleStop = useCallback(() => {
-    // Stop any playing TTS audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-      audioRef.current = null;
-    }
+    stopAudio();
     send('stop', {});
-  }, [send]);
+  }, [send, stopAudio]);
 
   const handleSaveNote = useCallback((content) => {
     setSaveModal({ content });
@@ -200,6 +195,12 @@ export default function App() {
     send('voice_mode', { always_on: on });
   }, [send]);
 
+  const handleToggleTts = useCallback((on) => {
+    setTtsEnabled(on);
+    if (!on) stopAudio();
+    send('tts_enabled', { enabled: on });
+  }, [send, stopAudio]);
+
   const handleGetNotes = useCallback(() => send('get_notes', {}), [send]);
   const handleSearchNotes = useCallback((q, t) => send('search_notes', { query: q, tags: t }), [send]);
   const handleDeleteNote = useCallback((id) => send('delete_note', { note_id: id }), [send]);
@@ -215,8 +216,20 @@ export default function App() {
   return (
     <div className="app-container">
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      <StatusBar status={connectionStatus} alwaysOn={alwaysOn} onToggleAlwaysOn={handleToggleAlwaysOn} />
+      <StatusBar
+        status={connectionStatus}
+        alwaysOn={alwaysOn}
+        ttsEnabled={ttsEnabled}
+        onToggleAlwaysOn={handleToggleAlwaysOn}
+        onToggleTts={handleToggleTts}
+      />
       <AvatarStatus state={avatarState} />
+      {isSpeaking && (
+        <div className="speaking-bar">
+          <span>🔊 正在朗读...</span>
+          <button className="btn-stop-speaking" onClick={stopAudio}>⏹ 停止朗读</button>
+        </div>
+      )}
       {activeTab === 'chat' ? (
         <ChatPanel
           messages={messages}
