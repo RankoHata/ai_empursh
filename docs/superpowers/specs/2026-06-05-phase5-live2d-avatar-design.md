@@ -99,17 +99,22 @@ src/renderer/components/
 
 ---
 
-## 6. 动画修复总结
+## 6. 动画修复总结（最终版）
 
-G36 模型是 Cubism 3 产物，motion 文件存在 5 个兼容性问题，均已在数据层面修复：
+经过逐层排查，G36 motion 文件中**唯一必须修复的是 Meta 计数**（225→1150）。其余问题均非致命：
 
-1. **UserData 空值** — 删除空 UserData 节
-2. **Meta 计数错误** — 重算 segments/points
-3. **API 误用** — `setEffectIds()` 应传数组
-4. **Loop 标志丢失** — Cubism 5 不再解析 JSON `Loop`，需手动 `setLoop(true)`
-5. **曲线不闭环** — `paramopai` 首尾值不一致（关键！）
+| 修复项 | 必要性 | 说明 |
+|--------|--------|------|
+| Meta 计数修正 | **必须** | 原始 225 太小，Cubism 5 预分配数组越界崩溃 |
+| `setEffectIds([Array])` | **必须** | 代码 BUG，传单值会崩 |
+| `setLoop(true)` | **必须** | Cubism 5 源码注释掉了 JSON Loop 解析 |
+| UserData 删除 | 不需要 | 空值不影响解析 |
+| paramopai 对齐 | 不需要 | 不影响稳定性，仅影响循环平滑度 |
+| MotionBehavior_V2 + fadeIn | 锦上添花 | 运行时平滑循环过渡 |
 
-**经验教训：** Cubism 3→5 迁移中，motion JSON 文件需要逐项检查。最隐蔽的问题是曲线首尾值不匹配——只有 1/29 条曲线有问题，但就这一条导致整个动画循环卡顿。
+### Segments 解析算法 & 自定义 Motion 编写
+
+详见独立文档：**[docs/live2d-motion-format.md](../../live2d-motion-format.md)**
 
 ---
 
