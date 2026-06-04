@@ -239,7 +239,7 @@ export default function App() {
       if (window.electronAPI) window.electronAPI.toggleMainWindow();
     };
     return (
-      <div className="live2d-only-container" onContextMenu={(e) => { e.preventDefault(); toggleMain(); }}>
+      <div className="live2d-only-container" onDoubleClick={toggleMain}>
         <Live2DAvatar state={avatarState} />
       </div>
     );
