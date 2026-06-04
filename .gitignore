@@ -25,3 +25,9 @@ backend/config.yaml
 
 # Database (user data)
 backend/data/
+
+# Model files (large binary)
+backend/models/
+
+# Temporary audio files
+backend/temp/
