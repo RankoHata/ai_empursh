@@ -165,3 +165,25 @@ def vad_detect(audio_bytes: bytes, threshold_rms: float = 0.02) -> bool:
 3. AI 回复后 → TTS 朗读回复内容 → 恢复语音图标表示 TTS 已生成
 4. 头像状态在待机/倾听/思考/说话之间正确切换
 5. 所有用户语音的识别文字和 AI 回复的朗读文字均在聊天界面显示
+
+---
+
+## 10. 实现过程中的 Bug 与修复
+
+| # | 问题 | 原因 | 修复 | 提交 |
+|---|------|------|------|------|
+| 1 | STT 模型下载失败 `ConnectTimeout` | HuggingFace 国内被墙，需走代理；但 DeepSeek 需直连 | 启动时设 `HTTP_PROXY` + `NO_PROXY=api.deepseek.com` 差异化路由 | — |
+| 2 | 录音 WAV 文件无声音 | MediaRecorder 产出的 WebM/Opus 格式，faster-whisper 只支持 PCM WAV | 放弃 MediaRecorder，改用 AudioContext + ScriptProcessor 捕获 PCM Float32，手动编码标准 WAV header | `0cd2258` |
+| 3 | TTS 崩溃 `RuntimeError: Unexpected ASGI message after websocket.close` | `_synthesize_and_send` 后台任务在 WebSocket 断开后仍尝试 send_json | 1) `_ws_send_safe()` 忽略已关闭连接错误 2) `tts_task` 跟踪 + 新消息/停止/断开时 cancel() 3) 取消时捕获 `CancelledError` | `164b2f8` |
+| 4 | 连续问问题时多个 TTS 重叠播放 | 新 play_audio 没停旧音频 | `audioRef` 跟踪当前播放，新消息/停止/语音输入时 stopAudio() | `8a5e5fd` |
+| 5 | 无法手动停止朗读 | 无停止朗读 UI | 新增 `🗣️ 朗读 ○/●` 开关（可关闭所有 TTS）+ `⏹ 停止朗读` 按钮（播放中显示） | `98b94ce` |
+| 6 | `mcp` 安装破坏 pydantic-core | pip 安装 mcp 时更新了 pydantic-core 但权限不足写入失败 | `pip install --force-reinstall pydantic-core pydantic fastapi` 修复 | — |
+| 7 | pydub 安装但 ffmpeg 不可用 | 系统未安装 ffmpeg，无法解码 WebM | 放弃 pydub 路线，改前端直接产出 WAV（见修复 #2） | — |
+| 8 | 模型文件 138MB 被误提交到 git | `git add backend/` 时包含了 models/ 和 temp/ | `git filter-branch` 清除历史 + .gitignore 排除 | `6e3c176` |
+
+### 经验教训
+
+- 前端录音优先使用 AudioContext PCM 方案，避免 WebM 格式兼容问题
+- 后台任务（TTS）必须可取消，且需处理 WebSocket 已关闭的情况
+- 代理设置需要差异化：国内 API 直连，境外服务走代理
+- pip 安装新包前注意检查依赖冲突，避免破坏已有环境
