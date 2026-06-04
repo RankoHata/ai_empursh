@@ -122,6 +122,7 @@ export class Model extends CubismUserModel {
             [CubismDefaultParameterId.ParamMouthOpenY]
           );
           motion.setLoop(true);
+          motion.setLoopFadeIn(true);
         }
         if (!firstMotion) firstMotion = motion;
       }
@@ -180,8 +181,15 @@ export class Model extends CubismUserModel {
 
   private _shaderPath = '';
 
+  private _prevTime = 0;
+
   draw(gl: WebGLRenderingContext, canvasWidth: number, canvasHeight: number): void {
     if (!this.getModel()) return;
+
+    const now = performance.now();
+    const deltaMs = this._prevTime ? Math.min(now - this._prevTime, 50) : 16;
+    this._prevTime = now;
+    const deltaSeconds = deltaMs / 1000;
 
     // Build projection matrix (matches SDK demo LAppLive2DManager)
     const projection = new CubismMatrix44();
@@ -197,7 +205,6 @@ export class Model extends CubismUserModel {
     projection.scale(ratio, 1.0);
 
     // Update all animations (matches SDK LAppModel.doUpdate)
-    const deltaSeconds = 1 / 60;
     this._motionManager?.updateMotion(model, deltaSeconds);
     this._expressionManager?.updateMotion(model, deltaSeconds);
     model.update();
