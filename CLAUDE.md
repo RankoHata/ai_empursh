@@ -21,15 +21,109 @@ Python FastAPI (main.py)
   └── live2d (前端)           Cubism 5 SDK Framework + Model.ts
 ```
 
-## 启动方式
+## 环境搭建（新机器从零开始）
+
+### 1. 前置依赖
+
+| 依赖 | 最低版本 | 验证命令 |
+|------|---------|---------|
+| Node.js | 18+ | `node --version` |
+| npm | 9+ | `npm --version` |
+| Python | 3.10+ | `python --version` |
+| pip | 22+ | `pip --version` |
+| Git | 任意 | `git --version` |
+| 代理工具 | — | 需要能访问外网（本机 127.0.0.1:7890 或系统代理） |
+
+### 2. 克隆项目
 
 ```bash
-# 终端 1 — 后端
-cd backend && python main.py
-
-# 终端 2 — 前端
-cd electron-app && npm start
+git clone git@github.com:RankoHata/ai_empursh.git
+cd ai_empursh
 ```
+
+### 3. 配置 API Key
+
+```bash
+cp backend/config.yaml.example backend/config.yaml
+```
+
+编辑 `backend/config.yaml`，将 `sk-your-key-here` 替换为真实的 DeepSeek API Key：
+
+```yaml
+model:
+  base_url: "https://api.deepseek.com/v1"
+  api_key: "sk-你的真实key"
+  model_name: "deepseek-chat"
+```
+
+### 4. 下载 Live2D Cubism SDK Core
+
+1. 打开 https://www.live2d.com/download/cubism-sdk/
+2. 下载 **Cubism SDK for Web** (最新版)
+3. 解压，找到 `Core/live2dcubismcore.min.js`
+4. 复制到 `electron-app/assets/live2d/live2dcubismcore.min.js`
+
+```bash
+# 示例（假设 SDK 解压到 C:\Users\xxx\Downloads\CubismSdkForWeb-5-r.5\）
+cp "CubismSdkForWeb-5-r.5/Core/live2dcubismcore.min.js" electron-app/assets/live2d/
+```
+
+### 5. 安装依赖
+
+```bash
+# Python 依赖（国内需代理）
+cd backend
+pip install --proxy http://127.0.0.1:7890 -r requirements.txt
+# 如果代理未运行则直接: pip install -r requirements.txt
+# 如果 pip 报 SSL 错误: no_proxy="*" pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
+cd ..
+
+# 前端依赖（国内需代理）
+cd electron-app
+npm config set proxy http://127.0.0.1:7890
+npm config set https-proxy http://127.0.0.1:7890
+npm config set strict-ssl false
+npm install
+# 无需代理时: npm install
+cd ..
+```
+
+### 6. 启动
+
+**终端 1 — 启动后端：**
+
+```bash
+cd backend
+python main.py
+# 看到 "Uvicorn running on http://127.0.0.1:8765" 即就绪
+```
+
+**终端 2 — 启动前端：**
+
+```bash
+cd electron-app
+npm start
+# Electron 窗口弹出，状态栏显示绿色 "已连接"
+```
+
+### 7. 首次使用注意事项
+
+- **语音识别**首次调用会下载 faster-whisper 模型（~140MB），需要能访问 HuggingFace
+- **TTS 朗读**默认开启，可在状态栏 `朗读 ○/●` 开关控制
+- **笔记**右键聊天消息 → "保存为笔记"
+- **材料整理**在聊天中输入 `/整理` 命令
+- **Live2D 模型**默认使用 Haru（SDK 示例），可在 `Live2DAvatar.jsx` 中切换 MODEL_URL
+
+### 故障排查
+
+| 问题 | 解决方案 |
+|------|---------|
+| 后端启动报 `Connection error` | 系统代理拦截了 DeepSeek API。代码已设 `NO_PROXY=api.deepseek.com`，如仍失败，在终端 `set NO_PROXY=api.deepseek.com` 后重启 |
+| npm install 失败 | 检查代理 127.0.0.1:7890 是否运行，或关闭代理直连 |
+| pip install SSL 错误 | 代理干扰了 SSL。用 `no_proxy="*" pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt` |
+| Live2D 显示"加载中"不消失 | 确认 `electron-app/assets/live2d/live2dcubismcore.min.js` 存在 |
+| 录音后 WAV 无声音 | 检查系统麦克风权限设置 |
+| Electron 启动报 `@pixi/core` 找不到 | `npm install` 未成功安装 pixi-live2d-display 的子依赖。删除 `node_modules/` 重装 |
 
 ## 目录地图
 
