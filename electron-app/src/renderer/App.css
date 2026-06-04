@@ -674,8 +674,7 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
 .live2d-only-container .live2d-container {
   width: 85%;
   height: 85%;
-  -webkit-app-region: no-drag;
-  cursor: context-menu;
+  -webkit-app-region: drag;
 }
 
 /* === Live2D Avatar === */

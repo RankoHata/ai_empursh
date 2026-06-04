@@ -235,14 +235,12 @@ export default function App() {
   const isLive2DOnly = window.location.search.includes('mode=live2d');
 
   if (isLive2DOnly) {
+    const toggleMain = () => {
+      if (window.electronAPI) window.electronAPI.toggleMainWindow();
+    };
     return (
-      <div className="live2d-only-container">
-        <Live2DAvatar
-          state={avatarState}
-          onContextMenu={() => {
-            if (window.electronAPI) window.electronAPI.toggleMainWindow();
-          }}
-        />
+      <div className="live2d-only-container" onContextMenu={(e) => { e.preventDefault(); toggleMain(); }}>
+        <Live2DAvatar state={avatarState} />
       </div>
     );
   }
