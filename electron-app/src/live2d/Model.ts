@@ -67,7 +67,7 @@ export class Model extends CubismUserModel {
         const expBuf = await xhrLoad(expUrl);
         const name = this._modelSetting.getExpressionName(i);
         const motion = this.loadExpression(expBuf, expBuf.byteLength, name);
-        if (motion) this.getExpressionManager()?.startMotionPriority(motion, false, 1);
+        if (motion) this._expressionManager?.startMotionPriority(motion, false, 1);
       }
     }
 
@@ -142,7 +142,7 @@ export class Model extends CubismUserModel {
 
   playMotion(name: string): void {
     const motion = this._motions.get(name);
-    if (motion) this.getMotionManager().startMotionPriority(motion, false, 3);
+    if (motion) this._motionManager?.startMotionPriority(motion, false, 3);
   }
 
   setParamById(id: string, value: number): void {
