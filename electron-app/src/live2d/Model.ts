@@ -110,12 +110,14 @@ export class Model extends CubismUserModel {
     this._log('Setup complete');
   }
 
-  initRenderer(gl: WebGLRenderingContext): void {
+  initRenderer(gl: WebGLRenderingContext, shaderPath: string): void {
     this.createRenderer();
     const r = this.getRenderer();
     r.initialize(this.getModel(), gl);
     r.setIsPremultipliedAlpha(true);
     r.startUp(gl);
+    // Load shaders from our assets directory
+    r.loadShaders(shaderPath);
     // Center model
     const m = this.getModel();
     if (m) {

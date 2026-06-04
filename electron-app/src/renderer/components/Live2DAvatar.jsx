@@ -34,7 +34,7 @@ export default function Live2DAvatar({ state = 'idle' }) {
         model.setLog((msg) => console.log('[Live2D]', msg));
 
         await model.setup(MODEL_URL);
-        model.initRenderer(gl);
+        model.initRenderer(gl, 'assets/live2d/shaders/');
         modelRef.current = model;
 
         if (!cancelled) {
