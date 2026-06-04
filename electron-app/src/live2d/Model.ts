@@ -4,6 +4,7 @@ import { CubismModelSettingJson } from './framework/cubismmodelsettingjson';
 import { CubismEyeBlink } from './framework/effect/cubismeyeblink';
 import { CubismBreath } from './framework/effect/cubismbreath';
 import { CubismMatrix44 } from './framework/math/cubismmatrix44';
+import { ACubismMotion } from './framework/motion/acubismmotion';
 import { ICubismModelSetting } from './framework/icubismmodelsetting';
 import { CubismWebGLOffscreenManager } from './framework/rendering/cubismoffscreenmanager';
 
@@ -105,6 +106,7 @@ export class Model extends CubismUserModel {
 
     // 9. Motions
     const mgCount = this._modelSetting.getMotionGroupCount();
+    let firstMotion: ACubismMotion | null = null;
     for (let g = 0; g < mgCount; g++) {
       const gName = this._modelSetting.getMotionGroupName(g);
       const mCount = this._modelSetting.getMotionCount(gName);
@@ -112,8 +114,13 @@ export class Model extends CubismUserModel {
         const mFile = this._modelSetting.getMotionFileName(gName, m);
         const mUrl = new URL(mFile, baseUrl).href;
         const mBuf = await xhrLoad(mUrl);
-        this.loadMotion(mBuf, mBuf.byteLength, gName);
+        const motion = this.loadMotion(mBuf, mBuf.byteLength, gName);
+        if (!firstMotion) firstMotion = motion;
       }
+    }
+    // Auto-start first idle motion
+    if (firstMotion) {
+      this._motionManager?.startMotionPriority(firstMotion, false, 3);
     }
 
     this._log('Setup complete');
