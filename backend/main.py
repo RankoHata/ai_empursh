@@ -500,8 +500,8 @@ async def websocket_chat(websocket: WebSocket):
                             cfg[key] = value
                     with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
                         yaml.dump(cfg, fh, allow_unicode=True, default_flow_style=False)
-                    global MODEL_CFG
-                    MODEL_CFG = cfg["model"]
+                    MODEL_CFG.clear()
+                    MODEL_CFG.update(cfg["model"])
                     await websocket.send_json({"type": "config_updated", "payload": {"success": True}})
                 except Exception as exc:
                     await websocket.send_json({
