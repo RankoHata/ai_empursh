@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState } from 'react';
 const MODEL_FILES = {
   model3Json: 'assets/live2d/g36_1904/normal/normal.model3.json',
   textures: ['assets/live2d/g36_1904/normal/textures/texture_00.png'],
-  motions: {} as Record<string, string>,
+  motions: {},
 };
 
 export default function Live2DAvatar({ state = 'idle' }) {

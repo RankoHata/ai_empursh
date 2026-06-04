@@ -128,7 +128,7 @@ export class Live2DManager {
             CubismDefaultParameterId.EyeLOpen,
             CubismDefaultParameterId.EyeROpen
           );
-          const key = (m.File as string).replace('.motion3.json', '');
+          const key = (m.File as string).split('/').pop()!.replace('.motion3.json', '');
           this._motions[key] = motion;
         }
       }
