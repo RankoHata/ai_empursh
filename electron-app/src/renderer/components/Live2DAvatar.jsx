@@ -54,6 +54,7 @@ export default function Live2DAvatar({ state = 'idle' }) {
         const canvas = canvasRef.current;
 
         // Match SDK demo LAppSubdelegate.onUpdate()
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.clearDepth(1);
