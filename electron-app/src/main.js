@@ -1,6 +1,11 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 
+// Enable WebGL/GPU for Live2D
+app.commandLine.appendSwitch('enable-webgl');
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
+app.commandLine.appendSwitch('disable-gpu-vsync');
+
 let mainWindow = null;
 let tray = null;
 
@@ -16,6 +21,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      webgl: true,
+      experimentalFeatures: true,
     },
   });
 
