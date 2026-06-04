@@ -68,7 +68,8 @@ export class Live2DManager {
     const settingJson = JSON.parse(jsonText);
 
     const mocPath = settingJson.FileReferences.Moc;
-    const mocUrl = new URL(mocPath, modelFiles.model3Json).href;
+    const modelBase = window.location.origin + '/' + modelFiles.model3Json;
+    const mocUrl = new URL(mocPath, modelBase).href;
 
     onLog?.(`Loading moc3: ${mocUrl}`);
 
@@ -91,7 +92,7 @@ export class Live2DManager {
     // 5. Load textures
     const texturePaths = settingJson.FileReferences.Textures || [];
     for (let i = 0; i < texturePaths.length; i++) {
-      const texUrl = new URL(texturePaths[i], modelFiles.model3Json).href;
+      const texUrl = new URL(texturePaths[i], modelBase).href;
       onLog?.(`Loading texture ${i}: ${texUrl}`);
       const img = new Image();
       img.src = texUrl;
@@ -116,7 +117,7 @@ export class Live2DManager {
     const motionGroups = settingJson.FileReferences.Motions || {};
     for (const [, motionList] of Object.entries(motionGroups)) {
       for (const m of motionList as any[]) {
-        const motionUrl = new URL(m.File, modelFiles.model3Json).href;
+        const motionUrl = new URL(m.File, modelBase).href;
         onLog?.(`Loading motion: ${motionUrl}`);
         const mResp = await fetch(motionUrl);
         const mBuffer = await mResp.arrayBuffer();
