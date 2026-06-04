@@ -123,6 +123,9 @@ export class Model extends CubismUserModel {
           );
           motion.setLoop(true);
           motion.setLoopFadeIn(true);
+          motion.setFadeInTime(0.5);
+          motion.setFadeOutTime(0.5);
+          motion.setMotionBehavior(2);
         }
         if (!firstMotion) firstMotion = motion;
       }
