@@ -679,11 +679,15 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
 /* === Live2D Avatar === */
 .live2d-container {
   width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.live2d-sidebar .live2d-container {
   aspect-ratio: 2 / 3;
   max-height: 100%;
-  position: relative;
   margin: auto;
-  overflow: hidden;
 }
 .live2d-canvas {
   width: 100%;
