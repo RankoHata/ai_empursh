@@ -1,56 +1,82 @@
 # AI 桌面助理 (Desktop AI Companion)
 
-阶段 1：项目骨架与基础聊天功能。
+本地 AI 桌面拟人助理，支持文字/语音对话、笔记管理、材料整理、Live2D 拟人形象。
 
 ## 前置条件
 
-- Python 3.10+ (with pip)
-- Node.js 18+ (with npm)
-- DeepSeek API Key (or any OpenAI-compatible API)
+- Python 3.10+
+- Node.js 18+
+- DeepSeek API Key（或其他 OpenAI 兼容 API）
+- Live2D Cubism SDK Core（从 https://www.live2d.com/download/cubism-sdk/ 下载，放到 electron-app/assets/live2d/）
 
 ## 快速开始
 
 ### 1. 配置 API Key
 
-```bash
+```
 cp backend/config.yaml.example backend/config.yaml
-# 编辑 backend/config.yaml，填入你的 api_key
+编辑 backend/config.yaml，填入 api_key
 ```
 
-### 2. 安装 Python 依赖
+### 2. 安装依赖
 
-```bash
+```
 cd backend
-pip install --proxy http://127.0.0.1:7890 -r requirements.txt
-```
+pip install -r requirements.txt
 
-### 3. 安装前端依赖
-
-```bash
 cd electron-app
-npm config set proxy http://127.0.0.1:7890
-npm config set https-proxy http://127.0.0.1:7890
-npm config set strict-ssl false
 npm install
 ```
 
-### 4. 启动后端
+### 3. 启动
 
-```bash
-# Windows (需要代理时)
-set HTTP_PROXY=http://127.0.0.1:7890
-set HTTPS_PROXY=http://127.0.0.1:7890
+终端 1 (后端):
+```
 cd backend
 python main.py
 ```
 
-### 5. 启动前端（另一个终端）
-
-```bash
+终端 2 (前端):
+```
 cd electron-app
 npm start
 ```
 
-### 6. 开始聊天
+## 功能
 
-在 Electron 窗口中输入消息，按 Enter 发送。
+- 流式多轮聊天 (DeepSeek / OpenAI 兼容 API)
+- 语音输入 (本地 faster-whisper) + 语音朗读 (edge-tts)
+- 笔记系统 (SQLite + FTS5 全文搜索，标签管理，Markdown 导出)
+- 材料整理 (/整理 命令，AI 归纳笔记生成文档)
+- Live2D 拟人形象 (Cubism 5)
+- 设置面板 + 系统托盘
+
+## 项目结构
+
+```
+├── backend/              # Python FastAPI 后端
+│   ├── main.py           # WebSocket 服务入口
+│   ├── agent/            # 聊天引擎 + 技能系统
+│   ├── db/               # SQLite 笔记数据库
+│   ├── voice/            # STT/TTS 语音模块
+│   └── skills/           # 技能定义 (.md)
+├── electron-app/         # Electron + React 前端
+│   ├── src/
+│   │   ├── main.js       # Electron 主进程
+│   │   ├── renderer/     # React 组件
+│   │   └── live2d/       # Live2D Cubism 集成
+│   └── assets/live2d/    # 模型 + Cubism Core
+└── docs/                 # 设计文档
+```
+
+## 技术栈
+
+| 层 | 技术 |
+|---|------|
+| 桌面 | Electron + React + Vite |
+| 后端 | Python FastAPI + WebSocket |
+| AI | DeepSeek API |
+| 语音识别 | faster-whisper |
+| 语音合成 | edge-tts |
+| 数据库 | SQLite + FTS5 |
+| Live2D | Cubism SDK for Web 5 |
