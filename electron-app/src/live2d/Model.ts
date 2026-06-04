@@ -184,7 +184,6 @@ export class Model extends CubismUserModel {
     model.update();
     model.loadParameters();
     if (this._eyeBlink) this._eyeBlink.updateParameters(model, 1/60);
-    if (this._breath) this._breath.updateParameters(model, 1/60);
 
     // Set matrix then draw
     this.getModelMatrix().setMatrix(projection);
