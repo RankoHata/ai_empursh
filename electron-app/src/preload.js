@@ -3,8 +3,9 @@
 // For Phase 1 the renderer communicates directly via WebSocket, so
 // preload only needs to exist for Forge's build pipeline.
 
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
+  toggleMainWindow: () => ipcRenderer.send('toggle-main-window'),
 });

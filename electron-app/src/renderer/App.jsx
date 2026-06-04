@@ -231,6 +231,17 @@ export default function App() {
     send('update_config', { updates });
   }, [send]);
 
+  // Live2D-only desktop pet mode
+  const isLive2DOnly = window.location.search.includes('mode=live2d');
+
+  if (isLive2DOnly) {
+    return (
+      <div className="live2d-only-container" onClick={() => window.electronAPI?.toggleMainWindow()}>
+        <Live2DAvatar state={avatarState} />
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       <div className="main-content">

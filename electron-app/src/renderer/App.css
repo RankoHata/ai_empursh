@@ -656,6 +656,23 @@ html, body, #root {
 .setting-input:focus { border-color: var(--accent); }
 .setting-hint { color: var(--text-secondary); font-size: 12px; }
 
+/* === Live2D Pet Mode === */
+html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
+  background: transparent !important;
+  overflow: hidden;
+}
+
+.live2d-only-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-app-region: drag;
+  background: transparent;
+}
+
 /* === Live2D Avatar === */
 .live2d-container {
   width: 100%;

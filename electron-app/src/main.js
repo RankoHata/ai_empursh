@@ -1,15 +1,26 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require('electron');
 const path = require('path');
 
-// Enable WebGL/GPU for Live2D
 app.commandLine.appendSwitch('enable-webgl');
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
 app.commandLine.appendSwitch('disable-gpu-vsync');
 
 let mainWindow = null;
+let live2dWindow = null;
 let tray = null;
+const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
 
-function createWindow() {
+function loadPage(win, query = '') {
+  if (isDev) {
+    win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL + query);
+  } else {
+    win.loadFile(path.join(__dirname, '../renderer/main_window/index.html'), {
+      query: query.startsWith('?') ? query.slice(1) : undefined,
+    });
+  }
+}
+
+function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 780,
@@ -17,6 +28,7 @@ function createWindow() {
     minHeight: 550,
     title: 'AI 桌面助理',
     backgroundColor: '#1a1a2e',
+    show: false, // start hidden
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -26,15 +38,8 @@ function createWindow() {
     },
   });
 
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/main_window/index.html`)
-    );
-  }
+  loadPage(mainWindow);
 
-  // Minimize to tray instead of closing
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
@@ -43,8 +48,43 @@ function createWindow() {
   });
 }
 
+function createLive2dWindow() {
+  live2dWindow = new BrowserWindow({
+    width: 400,
+    height: 600,
+    x: 1200,
+    y: 100,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webgl: true,
+      experimentalFeatures: true,
+    },
+  });
+
+  loadPage(live2dWindow, '?mode=live2d');
+}
+
+// IPC: live2d window click → toggle main window
+ipcMain.on('toggle-main-window', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isVisible()) {
+    mainWindow.hide();
+  } else {
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
 function createTray() {
-  // Generate a simple 16x16 icon programmatically
   const icon = nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAOElEQVQ4T2NkYPj/n4EBBJgYKAQMowYM/ccCkA0YNoDmYf8/A8P/fwwMDAz/GRj+M1BmAAOhCgBWuQYrnC6FJgAAAABJRU5ErkJggg=='
   );
@@ -56,49 +96,31 @@ function createTray() {
     {
       label: '显示窗口',
       click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
+        if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
       },
     },
     { type: 'separator' },
     {
       label: '退出',
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
+      click: () => { app.isQuitting = true; app.quit(); },
     },
   ]);
 
   tray.setContextMenu(contextMenu);
   tray.on('double-click', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
   });
 }
 
 app.whenReady().then(() => {
-  createWindow();
+  createMainWindow();
+  createLive2dWindow();
   createTray();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    } else if (mainWindow) {
-      mainWindow.show();
-    }
+    if (mainWindow) mainWindow.show();
   });
 });
 
-app.on('window-all-closed', () => {
-  // Don't quit — keep running in tray
-});
-
-// Prevent multiple instances
-app.on('before-quit', () => {
-  app.isQuitting = true;
-});
+app.on('window-all-closed', () => {});
+app.on('before-quit', () => { app.isQuitting = true; });
