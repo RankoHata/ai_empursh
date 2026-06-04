@@ -9,6 +9,9 @@
     "Motions": {
       "": [
         {
+          "File": "motions/sway_idle.motion3.json"
+        },
+        {
           "File": "motions/daiji_idle_01.motion3.json"
         }
       ]
