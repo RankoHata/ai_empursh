@@ -3,9 +3,9 @@ import { CubismUserModel } from './framework/model/cubismusermodel';
 import { CubismModelSettingJson } from './framework/cubismmodelsettingjson';
 import { CubismEyeBlink } from './framework/effect/cubismeyeblink';
 import { CubismBreath } from './framework/effect/cubismbreath';
-import { CubismDefaultParameterId } from './framework/cubismdefaultparameterid';
-import { ACubismMotion } from './framework/motion/acubismmotion';
+import { CubismMatrix44 } from './framework/math/cubismmatrix44';
 import { ICubismModelSetting } from './framework/icubismmodelsetting';
+import { CubismWebGLOffscreenManager } from './framework/rendering/cubismoffscreenmanager';
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -120,6 +120,7 @@ export class Model extends CubismUserModel {
   }
 
   async initRenderer(gl: WebGLRenderingContext, shaderPath: string, baseUrl: string): Promise<void> {
+    this._shaderPath = shaderPath;
     this.createRenderer();
     const r = this.getRenderer();
     r.initialize(this.getModel(), gl);
@@ -157,6 +158,43 @@ export class Model extends CubismUserModel {
       mat.setWidth(2.0 / m.getCanvasWidth());
       mat.setCenterPosition(0, -0.3);
     }
+  }
+
+  private _shaderPath = '';
+
+  draw(gl: WebGLRenderingContext, canvasWidth: number, canvasHeight: number): void {
+    if (!this.getModel()) return;
+
+    // Build projection matrix (matches SDK demo LAppLive2DManager)
+    const projection = new CubismMatrix44();
+    const model = this.getModel();
+    const mw = model.getCanvasWidth();
+    const mh = model.getCanvasHeight();
+    const cw = canvasWidth;
+    const ch = canvasHeight;
+
+    if (mw > 1.0 && cw < ch) {
+      this.getModelMatrix().setWidth(2.0);
+      projection.scale(1.0, cw / ch);
+    } else {
+      projection.scale(ch / cw, 1.0);
+    }
+
+    // Update + draw (matches SDK demo)
+    model.update();
+    model.loadParameters();
+    if (this._eyeBlink) this._eyeBlink.updateParameters(model, 1/60);
+    if (this._breath) this._breath.updateParameters(model, 1/60);
+
+    // Set matrix then draw
+    this.getModelMatrix().setMatrix(projection);
+    this.getRenderer().drawModel(this._shaderPath);
+
+    model.saveParameters();
+
+    // Offscreen cleanup
+    CubismWebGLOffscreenManager.getInstance().endFrameProcess(gl);
+    CubismWebGLOffscreenManager.getInstance().releaseStaleRenderTextures(gl);
   }
 
   playMotion(name: string): void {

@@ -51,18 +51,16 @@ export default function Live2DAvatar({ state = 'idle' }) {
       const loop = () => {
         if (!modelRef.current || !glRef.current) return;
         const gl = glRef.current;
-        const dt = 1 / 60;
+        const canvas = canvasRef.current;
 
-        gl.clearColor(0, 0, 0, 0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        // Match SDK demo LAppSubdelegate.onUpdate()
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.clearDepth(1);
         gl.enable(gl.BLEND);
-        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-        modelRef.current.getModel()?.update();
-        modelRef.current.getModel()?.loadParameters();
-        modelRef.current.getRenderer()?.drawModel();
-        modelRef.current.getModel()?.saveParameters();
-
+        modelRef.current.draw(gl, canvas.width, canvas.height);
         frameRef.current = requestAnimationFrame(loop);
       };
       loop();
