@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-const MODEL_URL = 'assets/live2d/haru/Haru.model3.json';
+const MODEL_URL = 'assets/live2d/g36_1904/normal/normal.model3.json';
 
 export default function Live2DAvatar({ state = 'idle' }) {
   const canvasRef = useRef(null);
