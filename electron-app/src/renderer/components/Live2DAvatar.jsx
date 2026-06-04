@@ -55,10 +55,10 @@ export default function Live2DAvatar({ state = 'idle' }) {
 
         // Match SDK demo LAppSubdelegate.onUpdate()
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-        gl.clearColor(0, 0, 0, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.clearDepth(1);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
         gl.enable(gl.BLEND);
+        gl.enable(gl.DEPTH_TEST);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
         modelRef.current.draw(gl, canvas.width, canvas.height);

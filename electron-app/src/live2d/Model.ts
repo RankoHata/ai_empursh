@@ -184,10 +184,13 @@ export class Model extends CubismUserModel {
       projection.scale(ch / cw, 1.0);
     }
 
-    // Update + draw (matches SDK demo)
+    // Update all animations (matches SDK LAppModel.update)
+    const deltaSeconds = 1 / 60;
+    this._motionManager?.updateMotion(model, deltaSeconds);
+    this._expressionManager?.updateMotion(model, deltaSeconds);
     model.update();
     model.loadParameters();
-    if (this._eyeBlink) this._eyeBlink.updateParameters(model, 1/60);
+    if (this._eyeBlink) this._eyeBlink.updateParameters(model, deltaSeconds);
 
     // Set matrix then draw
     this.getModelMatrix().setMatrix(projection);
