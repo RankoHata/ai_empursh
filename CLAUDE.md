@@ -31,21 +31,114 @@ cd backend && python main.py
 cd electron-app && npm start
 ```
 
-## 关键文件
+## 目录地图
 
-| 文件 | 职责 |
+### 图例
+
+| 标记 | 含义 |
 |------|------|
-| `backend/main.py` | FastAPI + WebSocket，所有消息路由 |
-| `backend/agent/chat.py` | ChatSession：流式聊天 + 上下文管理 |
-| `backend/agent/skills.py` | 解析 `skills/*.md`，命令→system_prompt 注入 |
-| `backend/db/notes.py` | SQLite FTS5 笔记增删查导出 |
-| `backend/voice/stt.py` | faster-whisper 语音转文字 + VAD |
-| `backend/voice/tts.py` | edge-tts 文字转语音 |
-| `electron-app/src/main.js` | Electron 主进程 + 系统托盘 |
-| `electron-app/src/renderer/App.jsx` | React 根组件，全部状态 + WS 消息路由 |
-| `electron-app/src/renderer/hooks/useWebSocket.js` | WS 连接管理 + 指数退避重连 |
-| `electron-app/src/live2d/Model.ts` | 我们的 CubismUserModel 子类 |
-| `electron-app/src/live2d/framework/` | Cubism 5 SDK，85 文件，零改动 |
+| ✏️  | 我们的代码，可自由修改 |
+| 📦 | 从 SDK/外部原封复制，**禁止修改** |
+| 🔧 | 用户需手动下载或生成 |
+
+---
+
+### 后端 `backend/`
+
+```
+backend/
+├── ✏️  main.py                 FastAPI + WebSocket，所有消息路由
+├── ✏️  requirements.txt         Python 依赖
+├── ✏️  config.yaml             用户 API Key（gitignore，不入库）
+├── ✏️  config.yaml.example     配置模板
+├── ✏️  agent/
+│   ├── ✏️  __init__.py
+│   ├── ✏️  chat.py             ChatSession：流式聊天 + 上下文管理
+│   └── ✏️  skills.py           技能加载器，解析 skills/*.md
+├── ✏️  db/
+│   ├── ✏️  __init__.py
+│   ├── ✏️  init_db.py          SQLite 建表 + FTS5 + 触发器
+│   └── ✏️  notes.py            笔记 CRUD + 搜索 + Markdown 导出
+├── ✏️  voice/
+│   ├── ✏️  __init__.py
+│   ├── ✏️  stt.py              faster-whisper 语音识别 + VAD
+│   └── ✏️  tts.py              edge-tts 语音合成
+├── ✏️  skills/
+│   └── ✏️  material_organizer.md   /整理 技能定义
+├── 🔧 data/                    SQLite 数据库文件（gitignore）
+├── 🔧 models/                  faster-whisper 下载的模型（gitignore）
+└── 🔧 temp/                    临时音频文件（gitignore）
+```
+
+### 前端 `electron-app/`
+
+```
+electron-app/
+├── ✏️  package.json            依赖 + 脚本
+├── ✏️  forge.config.js         Electron Forge 打包配置
+├── ✏️  vite.*.config.mjs       Vite 构建配置
+├── ✏️  index.html              HTML 入口 + CSP
+│
+├── ✏️  src/
+│   ├── ✏️  main.js             Electron 主进程 + 系统托盘
+│   ├── ✏️  preload.js          安全桥接
+│   │
+│   ├── ✏️  renderer/
+│   │   ├── ✏️  main.jsx         React 入口
+│   │   ├── ✏️  App.jsx          根组件：全部状态 + WS 消息路由
+│   │   ├── ✏️  App.css          全局样式
+│   │   ├── ✏️  hooks/
+│   │   │   └── ✏️  useWebSocket.js   WS 连接管理 + 指数退避重连
+│   │   └── ✏️  components/
+│   │       ├── ✏️  ChatPanel.jsx       聊天面板 + 右键菜单 + 录音
+│   │       ├── ✏️  MessageBubble.jsx   消息气泡
+│   │       ├── ✏️  StatusBar.jsx       连接状态 + TTS/常开开关
+│   │       ├── ✏️  TabBar.jsx          标签栏
+│   │       ├── ✏️  NotesPanel.jsx      笔记面板
+│   │       ├── ✏️  NoteCard.jsx        笔记卡片
+│   │       ├── ✏️  SettingsPanel.jsx   设置面板
+│   │       ├── ✏️  MarkdownPreview.jsx Markdown 预览弹窗
+│   │       ├── ✏️  Live2DAvatar.jsx    Live2D React 包装（~100 行）
+│   │       └── ✏️  AvatarStatus.jsx    emoji 头像状态
+│   │
+│   └── ✏️  live2d/
+│       ├── ✏️  Model.ts          我们的 CubismUserModel 子类（~230 行）
+│       ├── 📦 framework/         **Cubism 5 SDK Framework**（85 个 .ts 文件）
+│       │   ├── 📦 live2dcubismframework.ts
+│       │   ├── 📦 model/         CubismMoc, CubismModel, CubismUserModel
+│       │   ├── 📦 motion/        动画系统
+│       │   ├── 📦 rendering/     WebGL 渲染器 + Shader
+│       │   ├── 📦 effect/        眨眼、呼吸、物理
+│       │   ├── 📦 physics/       物理模拟
+│       │   ├── 📦 math/          矩阵运算
+│       │   ├── 📦 utils/         工具函数
+│       │   ├── 📦 id/            参数 ID 管理
+│       │   ├── 📦 type/          类型定义
+│       │   └── 📦 Shaders/       着色器源码（来自 SDK）
+│       └── 📦 framework/Shaders/  WebGL shader 文件（来自 Framework）
+│
+├── ✏️  assets/live2d/
+│   ├── 🔧 live2dcubismcore.min.js  用户从 Live2D 官网下载
+│   ├── 📦 haru/                    SDK 示例模型 Haru
+│   ├── 📦 g36_1904/               用户提供的 G36 模型 (GitHub)
+│   ├── ✏️  shaders/                我们复制的 shader 副本（运行时加载用）
+│   └── 🔧 icon/                    应用图标
+│
+└── ✏️  assets/                    其他静态资源
+```
+
+### 根目录
+
+```
+├── ✏️  CLAUDE.md               本文档
+├── ✏️  README.md               项目说明
+├── ✏️  start-backend.bat        Windows 后端启动脚本
+├── ✏️  .gitignore
+├── ✏️  doc/                    原始需求说明书
+└── ✏️  docs/superpowers/
+    ├── specs/                   5 份阶段设计文档（含 Bug 记录）
+    └── plans/                   实现计划
+```
 
 ## WebSocket 协议
 
