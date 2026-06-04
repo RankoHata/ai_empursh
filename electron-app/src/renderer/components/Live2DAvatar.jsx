@@ -40,22 +40,19 @@ export default function Live2DAvatar({
         }
         console.log('[Live2D] Core detected, loading model:', modelPath);
 
-        const app = new Application({
-          view: canvasRef.current,
+        const app = new Application();
+        await app.init({
+          canvas: canvasRef.current,
           width: 300,
           height: 400,
           backgroundAlpha: 0,
           antialias: true,
-          resolution: window.devicePixelRatio || 1,
-          forceCanvas: false,
-          preserveDrawingBuffer: true,
         });
         appRef.current = app;
-
-        console.log('[Live2D] PixiJS renderer:', app.renderer.type, app.renderer.options);
+        console.log('[Live2D] PixiJS 8 renderer ready');
 
         const model = await Live2DModel.from(modelPath, { autoInteract: false });
-        console.log('[Live2D] Model created, textures:', model.textures?.length);
+        console.log('[Live2D] Model loaded');
 
         model.anchor.set(0.5, 0);
         model.x = app.screen.width / 2;
@@ -80,7 +77,7 @@ export default function Live2DAvatar({
     return () => {
       cancelled = true;
       if (appRef.current) {
-        appRef.current.destroy(true, { children: true });
+        appRef.current.destroy(true);
         appRef.current = null;
       }
       modelRef.current = null;
