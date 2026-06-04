@@ -29,10 +29,23 @@ html, body, #root {
 /* === App Layout === */
 .app-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
-  max-width: 900px;
-  margin: 0 auto;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.live2d-sidebar {
+  width: 480px;
+  flex-shrink: 0;
+  display: flex;
+  border-left: 1px solid var(--border);
 }
 
 /* === StatusBar === */
@@ -645,17 +658,18 @@ html, body, #root {
 
 /* === Live2D Avatar === */
 .live2d-container {
-  width: 300px;
-  height: 400px;
-  margin: 0 auto;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  max-height: 100%;
   position: relative;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
+  margin: auto;
+  overflow: hidden;
 }
 .live2d-canvas {
-  width: 300px;
-  height: 400px;
+  width: 100%;
+  height: 100%;
+  transform: scale(1.5);
+  transform-origin: center center;
 }
 .live2d-loading, .live2d-error {
   position: absolute;

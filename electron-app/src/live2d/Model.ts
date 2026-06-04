@@ -118,16 +118,17 @@ export class Model extends CubismUserModel {
         const motion = this.loadMotion(mBuf, mBuf.byteLength, gName);
         if (motion) {
           motion.setEffectIds(
-            CubismDefaultParameterId.EyeLOpen,
-            CubismDefaultParameterId.EyeROpen
+            [CubismDefaultParameterId.ParamEyeLOpen, CubismDefaultParameterId.ParamEyeROpen],
+            [CubismDefaultParameterId.ParamMouthOpenY]
           );
+          motion.setLoop(true);
         }
         if (!firstMotion) firstMotion = motion;
       }
     }
     // Auto-start first idle motion
     if (firstMotion) {
-      this._motionManager?.startMotionPriority(firstMotion, false, 3);
+      this._motionManager?.startMotionPriority(firstMotion, true, 3);
     }
 
     this._log('Setup complete');
@@ -169,12 +170,11 @@ export class Model extends CubismUserModel {
       }
     }
 
-    // Center model
+    // Center model (scale handled in draw())
     const m = this.getModel();
     if (m) {
       const mat = this.getModelMatrix();
-      mat.setWidth(2.0 / m.getCanvasWidth());
-      mat.setCenterPosition(0, -0.3);
+      mat.setCenterPosition(0, 0);
     }
   }
 
@@ -191,12 +191,10 @@ export class Model extends CubismUserModel {
     const cw = canvasWidth;
     const ch = canvasHeight;
 
-    if (mw > 1.0 && cw < ch) {
-      this.getModelMatrix().setWidth(2.0);
-      projection.scale(1.0, cw / ch);
-    } else {
-      projection.scale(ch / cw, 1.0);
-    }
+    // Maintain model aspect ratio, fit to canvas
+    this.getModelMatrix().setWidth(2.0);
+    const ratio = (mw / mh) * (ch / cw);
+    projection.scale(ratio, 1.0);
 
     // Update all animations (matches SDK LAppModel.doUpdate)
     const deltaSeconds = 1 / 60;

@@ -93,7 +93,7 @@ export default function Live2DAvatar({ state = 'idle' }) {
 
   return (
     <div className="live2d-container">
-      <canvas ref={canvasRef} className="live2d-canvas" width="300" height="400" />
+      <canvas ref={canvasRef} className="live2d-canvas" width="480" height="960" />
       {status === 'loading' && <div className="live2d-loading">加载中...</div>}
       {status.startsWith('error') && <div className="live2d-error">⚠️ {status}</div>}
     </div>

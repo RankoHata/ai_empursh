@@ -233,41 +233,41 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <Live2DAvatar state={avatarState} />
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      <StatusBar
-        status={connectionStatus}
-        alwaysOn={alwaysOn}
-        ttsEnabled={ttsEnabled}
-        onToggleAlwaysOn={handleToggleAlwaysOn}
-        onToggleTts={handleToggleTts}
-      />
-      {isSpeaking && (
-        <div className="speaking-bar">
-          <span>🔊 正在朗读...</span>
-          <button className="btn-stop-speaking" onClick={stopAudio}>⏹ 停止朗读</button>
-        </div>
-      )}
-      {activeTab === 'chat' ? (
-        <ChatPanel
-          messages={messages}
-          isStreaming={isStreaming}
-          onSend={handleSend}
-          onStop={handleStop}
-          onSaveNote={handleSaveNote}
-          onVoiceInput={handleVoiceInput}
+      <div className="main-content">
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <StatusBar
+          status={connectionStatus}
+          alwaysOn={alwaysOn}
+          ttsEnabled={ttsEnabled}
+          onToggleAlwaysOn={handleToggleAlwaysOn}
+          onToggleTts={handleToggleTts}
         />
-      ) : activeTab === 'notes' ? (
-        <NotesPanel
-          notes={notes}
-          onGetNotes={handleGetNotes}
-          onSearch={handleSearchNotes}
-          onDelete={handleDeleteNote}
-          onExport={handleExportNotes}
-        />
-      ) : (
-        <SettingsPanel
-          config={config}
+        {isSpeaking && (
+          <div className="speaking-bar">
+            <span>🔊 正在朗读...</span>
+            <button className="btn-stop-speaking" onClick={stopAudio}>⏹ 停止朗读</button>
+          </div>
+        )}
+        {activeTab === 'chat' ? (
+          <ChatPanel
+            messages={messages}
+            isStreaming={isStreaming}
+            onSend={handleSend}
+            onStop={handleStop}
+            onSaveNote={handleSaveNote}
+            onVoiceInput={handleVoiceInput}
+          />
+        ) : activeTab === 'notes' ? (
+          <NotesPanel
+            notes={notes}
+            onGetNotes={handleGetNotes}
+            onSearch={handleSearchNotes}
+            onDelete={handleDeleteNote}
+            onExport={handleExportNotes}
+          />
+        ) : (
+          <SettingsPanel
+            config={config}
           onUpdateConfig={handleUpdateConfig}
           onLoad={handleGetConfig}
         />
@@ -303,6 +303,10 @@ export default function App() {
           onCancel={handleCancelPreview}
         />
       )}
+      </div>
+      <div className="live2d-sidebar">
+        <Live2DAvatar state={avatarState} />
+      </div>
     </div>
   );
 }

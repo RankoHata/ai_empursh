@@ -11,10 +11,10 @@ let tray = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 960,
-    height: 680,
-    minWidth: 480,
-    minHeight: 400,
+    width: 1320,
+    height: 780,
+    minWidth: 900,
+    minHeight: 550,
     title: 'AI 桌面助理',
     backgroundColor: '#1a1a2e',
     webPreferences: {
