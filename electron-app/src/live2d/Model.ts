@@ -193,8 +193,8 @@ export class Model extends CubismUserModel {
 
     // Update all animations (matches SDK LAppModel.doUpdate)
     const deltaSeconds = 1 / 60;
-    this._motionManager?.updateMotion(model, deltaSeconds);
-    this._expressionManager?.updateMotion(model, deltaSeconds);
+    try { this._motionManager?.updateMotion(model, deltaSeconds); } catch (e) {}
+    try { this._expressionManager?.updateMotion(model, deltaSeconds); } catch (e) {}
     model.update();
     model.loadParameters();
     if (this._eyeBlink) this._eyeBlink.updateParameters(model, deltaSeconds);
