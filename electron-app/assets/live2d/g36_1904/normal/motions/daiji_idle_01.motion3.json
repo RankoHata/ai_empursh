@@ -6,9 +6,9 @@
     "Loop": true,
     "AreBeziersRestricted": true,
     "CurveCount": 29,
-    "TotalSegmentCount": 625,
-    "TotalPointCount": 625,
-    "UserDataCount": 0,
+    "TotalSegmentCount": 1150,
+    "TotalPointCount": 1150,
+    "UserDataCount": 1,
     "TotalUserDataSize": 0
   },
   "Curves": [
@@ -1322,7 +1322,7 @@
         -0.24,
         2,
         8.867,
-        0.01
+        -0.24
       ]
     },
     {
@@ -1335,6 +1335,12 @@
         8.867,
         0
       ]
+    }
+  ],
+  "UserData": [
+    {
+      "Time": 0.0,
+      "Value": ""
     }
   ]
 }
