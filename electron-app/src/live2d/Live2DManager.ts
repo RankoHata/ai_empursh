@@ -13,22 +13,19 @@ import { CubismBreath } from './framework/effect/cubismbreath';
 import { CubismRenderer_WebGL } from './framework/rendering/cubismrenderer_webgl';
 import { CubismDefaultParameterId } from './framework/cubismdefaultparameterid';
 import { CubismMatrix44 } from './framework/math/cubismmatrix44';
-import { CubismLogInfo } from './framework/utils/cubismdebug';
+import { CubismPhysics } from './framework/physics/cubismphysics';
+import { CubismPose } from './framework/effect/cubismpose';
+import { CubismModelUserData } from './framework/model/cubismmodeluserdata';
+import { ICubismModelSetting } from './framework/icubismmodelsetting';
 
 type ModelFiles = {
   model3Json: string;
-  moc3: string;
   textures: string[];
   motions: Record<string, string>;
 };
 
 type LoadCallback = (message: string) => void;
 
-const FRAME_TIME = 1000 / 60; // ~16.67ms target
-
-/**
- * Minimal Live2D renderer using the official Cubism 5 Framework.
- */
 export class Live2DManager {
   private _canvas: HTMLCanvasElement | null = null;
   private _gl: WebGLRenderingContext | null = null;
@@ -44,11 +41,13 @@ export class Live2DManager {
   async init(
     canvas: HTMLCanvasElement,
     modelFiles: ModelFiles,
-    shaderPath: string,
     onLog?: LoadCallback
   ): Promise<void> {
     this._canvas = canvas;
-    const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true });
+    const gl = canvas.getContext('webgl', {
+      alpha: true,
+      premultipliedAlpha: true,
+    });
     if (!gl) throw new Error('WebGL not available');
     this._gl = gl;
 
@@ -61,87 +60,92 @@ export class Live2DManager {
       CubismFramework.initialize();
     }
 
-    // Load model
     onLog?.('Loading model...');
 
-    // Fetch model json
+    // 1. Load model3.json to get file references
     const jsonResp = await fetch(modelFiles.model3Json);
-    const jsonBuffer = await jsonResp.arrayBuffer();
-    const setting = new CubismModelSettingJson(jsonBuffer, jsonBuffer.byteLength);
+    const jsonText = await jsonResp.text();
+    const settingJson = JSON.parse(jsonText);
 
-    // Fetch moc3
-    const mocResp = await fetch(modelFiles.moc3);
+    const mocPath = settingJson.FileReferences.Moc;
+    const mocUrl = new URL(mocPath, modelFiles.model3Json).href;
+
+    onLog?.(`Loading moc3: ${mocUrl}`);
+
+    // 2. Load moc3
+    const mocResp = await fetch(mocUrl);
     const mocBuffer = await mocResp.arrayBuffer();
     const moc = CubismMoc.create(mocBuffer, mocBuffer.byteLength);
+    if (!moc) throw new Error('Failed to load moc3');
 
+    // 3. Create model
     const model = new CubismUserModel();
     model.loadModel(moc.createModel());
-    model.loadSetting(setting);
 
-    // Setup renderer
+    // 4. Setup renderer
     const renderer = new CubismRenderer_WebGL();
     renderer.initialize(model.getModel(), gl);
     renderer.setIsPremultipliedAlpha(true);
     renderer.startUp(gl);
 
-    // Load textures
-    for (let i = 0; i < modelFiles.textures.length; i++) {
+    // 5. Load textures
+    const texturePaths = settingJson.FileReferences.Textures || [];
+    for (let i = 0; i < texturePaths.length; i++) {
+      const texUrl = new URL(texturePaths[i], modelFiles.model3Json).href;
+      onLog?.(`Loading texture ${i}: ${texUrl}`);
       const img = new Image();
-      img.src = modelFiles.textures[i];
+      img.src = texUrl;
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
           const texId = gl.createTexture();
           gl.bindTexture(gl.TEXTURE_2D, texId);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.generateMipmap(gl.TEXTURE_2D);
+          gl.bindTexture(gl.TEXTURE_2D, null);
           resolve();
         };
-        img.onerror = reject;
+        img.onerror = (e) => reject(new Error(`Failed to load texture: ${texUrl}`));
       });
     }
 
-    // Load motions
-    for (const [name, path] of Object.entries(modelFiles.motions)) {
-      const mResp = await fetch(path);
-      const mBuffer = await mResp.arrayBuffer();
-      // Use CubismMotion directly for Cubism 5
-      const motion = CubismMotion.create(
-        mBuffer,
-        mBuffer.byteLength,
-        () => {} // motion finished callback
-      );
-      if (motion) {
-        motion.setEffectIds(
-          CubismDefaultParameterId.EyeLOpen,
-          CubismDefaultParameterId.EyeROpen
-        );
-        this._motions[name] = motion;
+    // 6. Load motions
+    const motionGroups = settingJson.FileReferences.Motions || {};
+    for (const [, motionList] of Object.entries(motionGroups)) {
+      for (const m of motionList as any[]) {
+        const motionUrl = new URL(m.File, modelFiles.model3Json).href;
+        onLog?.(`Loading motion: ${motionUrl}`);
+        const mResp = await fetch(motionUrl);
+        const mBuffer = await mResp.arrayBuffer();
+        const motion = CubismMotion.create(mBuffer, mBuffer.byteLength, () => {
+          onLog?.('Motion finished');
+        });
+        if (motion) {
+          motion.setEffectIds(
+            CubismDefaultParameterId.EyeLOpen,
+            CubismDefaultParameterId.EyeROpen
+          );
+          const key = (m.File as string).replace('.motion3.json', '');
+          this._motions[key] = motion;
+        }
       }
     }
 
-    // Auto animations
-    this._eyeBlink = CubismEyeBlink.create(model.getModel().getModel());
+    // 7. Auto animations
+    if (model.getModel()) {
+      this._eyeBlink = CubismEyeBlink.create(model.getModel().getModel());
+    }
     this._breath = CubismBreath.create();
-
-    // Set up model matrix
-    const matrix = new CubismMatrix44();
-    const projection = new CubismMatrix44();
-    const aspect = canvas.width / canvas.height;
-    const sc = 1.0;
-
-    // Center model vertically
-    projection.scale(sc, sc * aspect);
-    matrix.translate(0, -0.3);
 
     this._model = model;
     this._renderer = renderer;
     this._initialized = true;
     onLog?.('Model loaded');
 
-    // Start render loop
+    // 8. Start render loop
     this._lastTime = performance.now();
     this._loop();
   }
@@ -150,7 +154,7 @@ export class Live2DManager {
     if (!this._initialized || !this._model || !this._renderer || !this._gl) return;
 
     const now = performance.now();
-    const delta = Math.min(now - this._lastTime, 100); // cap delta
+    const delta = Math.min(now - this._lastTime, 100);
     this._lastTime = now;
 
     const gl = this._gl;
@@ -159,17 +163,14 @@ export class Live2DManager {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    // Update model
-    this._model.getModel().update();
-    this._model.getModel().loadParameters();
+    if (this._model.getModel()) {
+      this._model.getModel().update();
+      this._model.getModel().loadParameters();
+      this._eyeBlink?.updateParameters(this._model.getModel(), delta / 1000);
+      this._breath?.updateParameters(this._model.getModel(), delta / 1000);
+    }
 
-    // Auto animations
-    this._eyeBlink?.updateParameters(this._model.getModel(), delta / 1000);
-    this._breath?.updateParameters(this._model.getModel(), delta / 1000);
-
-    // Render
     this._renderer.drawModel();
-
     this._animFrameId = requestAnimationFrame(this._loop);
   };
 
@@ -182,17 +183,7 @@ export class Live2DManager {
   }
 
   setParam(id: string, value: number): void {
-    this._model?.getModel().setParameterValueById(id, value);
-  }
-
-  resize(w: number, h: number): void {
-    if (this._canvas) {
-      this._canvas.width = w;
-      this._canvas.height = h;
-    }
-    if (this._gl) {
-      this._gl.viewport(0, 0, w, h);
-    }
+    this._model?.getModel()?.setParameterValueById(id, value);
   }
 
   release(): void {

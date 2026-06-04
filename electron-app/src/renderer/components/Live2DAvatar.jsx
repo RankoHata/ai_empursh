@@ -2,11 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 
 const MODEL_FILES = {
   model3Json: 'assets/live2d/g36_1904/normal/normal.model3.json',
-  moc3: 'assets/live2d/g36_1904/normal/normal.moc3',
   textures: ['assets/live2d/g36_1904/normal/textures/texture_00.png'],
-  motions: {
-    idle: 'assets/live2d/g36_1904/normal/motions/daiji_idle_01.motion3.json',
-  },
+  motions: {} as Record<string, string>,
 };
 
 export default function Live2DAvatar({ state = 'idle' }) {
@@ -36,13 +33,12 @@ export default function Live2DAvatar({ state = 'idle' }) {
         await mgr.init(
           canvasRef.current,
           MODEL_FILES,
-          'assets/live2d/shaders/',
           (msg) => console.log('[Live2D]', msg)
         );
 
         if (!cancelled) {
           setStatus('ready');
-          mgr.startMotion('idle');
+          mgr.startMotion('daiji_idle_01');
         }
       } catch (err) {
         console.error('[Live2D] Init failed:', err);
@@ -70,11 +66,10 @@ export default function Live2DAvatar({ state = 'idle' }) {
         mgr.startMotion('idle');
         break;
       case 'speaking':
-        // Random open mouth
-        mgr.setParam('ParamMouthOpenY', 0.5 + Math.random() * 0.5);
+        mgr.setParam('ParamMouthOpenY', 0.3 + Math.random() * 0.4);
         break;
       case 'thinking':
-        mgr.startMotion('idle');
+        mgr.startMotion('daiji_idle_01');
         break;
       default:
         break;
