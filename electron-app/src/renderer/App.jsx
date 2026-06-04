@@ -7,6 +7,7 @@ import NotesPanel from './components/NotesPanel';
 import AvatarStatus from './components/AvatarStatus';
 import MarkdownPreview from './components/MarkdownPreview';
 import SettingsPanel from './components/SettingsPanel';
+import Live2DAvatar from './components/Live2DAvatar';
 
 let nextId = 1;
 
@@ -232,6 +233,7 @@ export default function App() {
 
   return (
     <div className="app-container">
+      <Live2DAvatar state={avatarState} />
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
       <StatusBar
         status={connectionStatus}
@@ -240,7 +242,6 @@ export default function App() {
         onToggleAlwaysOn={handleToggleAlwaysOn}
         onToggleTts={handleToggleTts}
       />
-      <AvatarStatus state={avatarState} />
       {isSpeaking && (
         <div className="speaking-bar">
           <span>🔊 正在朗读...</span>

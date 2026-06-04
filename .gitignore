@@ -31,3 +31,6 @@ backend/models/
 
 # Temporary audio files
 backend/temp/
+
+# Live2D Cubism SDK (licensed, user must download)
+electron-app/assets/live2d/live2dcubismcore.*

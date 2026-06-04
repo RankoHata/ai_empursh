@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:8765 http://127.0.0.1:8765; media-src 'self' http://127.0.0.1:8765" />
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:8765 http://127.0.0.1:8765; media-src 'self' http://127.0.0.1:8765; img-src 'self' blob: data:; worker-src 'self' blob:" />
   <title>AI 桌面助理</title>
 </head>
 <body>
   <div id="root"></div>
+  <script src="assets/live2d/live2dcubismcore.min.js"></script>
   <script type="module" src="/src/renderer/main.jsx"></script>
 </body>
 </html>

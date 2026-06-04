@@ -642,3 +642,26 @@ html, body, #root {
 }
 .setting-input:focus { border-color: var(--accent); }
 .setting-hint { color: var(--text-secondary); font-size: 12px; }
+
+/* === Live2D Avatar === */
+.live2d-container {
+  width: 300px;
+  height: 400px;
+  margin: 0 auto;
+  position: relative;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.live2d-canvas {
+  width: 300px;
+  height: 400px;
+}
+.live2d-loading, .live2d-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
