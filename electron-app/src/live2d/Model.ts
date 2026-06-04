@@ -123,8 +123,6 @@ export class Model extends CubismUserModel {
           );
           motion.setLoop(true);
           motion.setLoopFadeIn(true);
-          motion.setFadeInTime(0.5);
-          motion.setFadeOutTime(0.5);
           motion.setMotionBehavior(2);
         }
         if (!firstMotion) firstMotion = motion;
@@ -185,6 +183,7 @@ export class Model extends CubismUserModel {
   private _shaderPath = '';
 
   private _prevTime = 0;
+  private _loopLog = 0;
 
   draw(gl: WebGLRenderingContext, canvasWidth: number, canvasHeight: number): void {
     if (!this.getModel()) return;
