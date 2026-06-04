@@ -47,10 +47,15 @@ export default function Live2DAvatar({
           backgroundAlpha: 0,
           antialias: true,
           resolution: window.devicePixelRatio || 1,
+          forceCanvas: false,
+          preserveDrawingBuffer: true,
         });
         appRef.current = app;
 
+        console.log('[Live2D] PixiJS renderer:', app.renderer.type, app.renderer.options);
+
         const model = await Live2DModel.from(modelPath, { autoInteract: false });
+        console.log('[Live2D] Model created, textures:', model.textures?.length);
 
         model.anchor.set(0.5, 0);
         model.x = app.screen.width / 2;
