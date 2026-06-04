@@ -197,10 +197,6 @@ export class Model extends CubismUserModel {
     this.getRenderer().drawModel(this._shaderPath);
 
     model.saveParameters();
-
-    // Offscreen cleanup
-    CubismWebGLOffscreenManager.getInstance().endFrameProcess(gl);
-    CubismWebGLOffscreenManager.getInstance().releaseStaleRenderTextures(gl);
   }
 
   playMotion(name: string): void {
