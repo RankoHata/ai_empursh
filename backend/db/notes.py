@@ -94,6 +94,16 @@ def search_notes(query: str | None = None, tags: list[str] | None = None) -> lis
         conn.close()
 
 
+def get_all_tags() -> list[str]:
+    """Return all unique tag names from the database."""
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT name FROM tags ORDER BY name").fetchall()
+        return [r["name"] for r in rows]
+    finally:
+        conn.close()
+
+
 def delete_note(note_id: int) -> bool:
     """Delete a note by ID. Returns True if deleted, False if not found."""
     conn = get_connection()

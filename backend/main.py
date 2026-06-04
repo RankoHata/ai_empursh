@@ -128,6 +128,108 @@ async def serve_audio(filename: str):
     return FileResponse(file_path, media_type="audio/mpeg")
 
 
+def _extract_tags(text: str) -> list[str]:
+    """Extract #tag mentions from user input. Returns deduplicated list."""
+    import re
+    tags = re.findall(r"#([^\s,，。.!！?？]+)", text)
+    return list(dict.fromkeys(tags))  # deduplicate, preserve order
+
+
+def _resolve_tags(
+    mentioned: list[str], all_db_tags: list[str]
+) -> tuple[list[str], dict[str, list[str]]]:
+    """Match mentioned tags against DB tags.
+
+    Returns (resolved_tags, ambiguous):
+      - resolved_tags: list of tag names with a single clear match
+      - ambiguous: dict of {mentioned: [possible_db_tags]} for tags with multiple/no matches
+    """
+    resolved = []
+    ambiguous = {}
+
+    for raw in mentioned:
+        # 1. Exact match
+        if raw in all_db_tags:
+            resolved.append(raw)
+            continue
+
+        # 2. Substring match (mentioned appears inside DB tag, or vice versa)
+        matches = [t for t in all_db_tags if raw.lower() in t.lower() or t.lower() in raw.lower()]
+        if len(matches) == 1:
+            resolved.append(matches[0])
+        elif len(matches) > 1:
+            ambiguous[raw] = matches
+        else:
+            # No match — list all tags as options
+            ambiguous[raw] = all_db_tags[:20]  # limit to 20
+
+    return resolved, ambiguous
+
+
+def _tag_confirm_msg(ambiguous: dict[str, list[str]]) -> dict:
+    """Build a tag confirmation message payload."""
+    lines = ["🤔 **请确认你想使用的标签：**\n"]
+    for tag, options in ambiguous.items():
+        lines.append(f"**`#{tag}`** 匹配到：")
+        for j, opt in enumerate(options[:10], 1):
+            lines.append(f"  {j}. `{opt}`")
+        lines.append("")
+    lines.append("请回复标签名确认（如 `工作`），或添加 `不询问` 让系统自动选择。")
+    return {"full_content": "\n".join(lines), "partial": False}
+
+
+def _build_skill_prompt(skill: dict, tags: list[str], user_text: str) -> str:
+    """Build the augmented prompt for a skill with note context."""
+    context_parts = [skill["system_prompt"]]
+
+    if any(t in skill["allowed_tools"] for t in ("search_notes", "get_notes")):
+        notes = notes_db.search_notes(tags=tags if tags else None)
+        if notes:
+            tag_label = ", ".join(tags) if tags else "全部"
+            context_parts.append(f"\n\n## 检索到的笔记（标签: {tag_label}）\n")
+            for n in notes:
+                tags_str = ", ".join(n["tags"]) if n["tags"] else "无"
+                context_parts.append(
+                    f"- [{n['id']}] {n['created_at']} #{tags_str}\n  {n['content']}"
+                )
+            context_parts.append(f"\n共 {len(notes)} 条笔记。请根据以上内容整理生成文档。")
+        else:
+            context_parts.append("\n\n（未找到匹配的笔记，请告知用户。）")
+
+    context_parts.append(f"\n## 用户指令\n{user_text}")
+    return "\n".join(context_parts)
+
+
+def _parse_confirmation(text: str, ambiguous: dict[str, list[str]]) -> list[str] | None:
+    """Try to parse a user confirmation message for tag selection.
+
+    Returns list of confirmed tag names, or None if unable to parse.
+    """
+    text_stripped = text.strip()
+    all_options = []
+    for options in ambiguous.values():
+        all_options.extend(options)
+
+    confirmed = []
+    for part in text_stripped.replace(",", " ").replace("，", " ").split():
+        part = part.strip().lstrip("#")
+        # Check if it's a number reference
+        if part.isdigit():
+            idx = int(part) - 1
+            if 0 <= idx < len(all_options):
+                confirmed.append(all_options[idx])
+        # Check if it matches a DB tag name
+        elif part in all_options:
+            confirmed.append(part)
+        else:
+            # Try case-insensitive match
+            match = next((t for t in all_options if t.lower() == part.lower()), None)
+            if match:
+                confirmed.append(match)
+
+    return confirmed if confirmed else None
+
+
 def _timestamp() -> str:
     """Return a short timestamp string for filenames."""
     from datetime import datetime
@@ -170,6 +272,7 @@ async def websocket_chat(websocket: WebSocket):
     )
     tts_task: asyncio.Task | None = None
     tts_enabled = True  # per-connection TTS toggle
+    pending_skill = None  # {skill, resolved, ambiguous, original_text} or None
 
     try:
         while True:
@@ -200,28 +303,68 @@ async def websocket_chat(websocket: WebSocket):
                     tts_task.cancel()
                     tts_task = None
 
-                # Skill routing: detect /command and inject system_prompt + context
+                # Check for pending skill confirmation
+                if pending_skill is not None:
+                    # User is responding to a tag confirmation
+                    confirmed_tags = _parse_confirmation(user_text, pending_skill["ambiguous"])
+                    if confirmed_tags is not None:
+                        all_tags = pending_skill["resolved"] + confirmed_tags
+                        augmented_text = _build_skill_prompt(
+                            pending_skill["skill"], all_tags, pending_skill["original_text"]
+                        )
+                        active_skill = pending_skill["skill"]
+                        pending_skill = None
+                    else:
+                        # User didn't confirm clearly — ask again
+                        await websocket.send_json({
+                            "type": "message_complete",
+                            "payload": _tag_confirm_msg(pending_skill["ambiguous"]),
+                        })
+                        continue
+
+                # Skill routing: detect /command, extract tags, inject context
                 active_skill = None
                 augmented_text = user_text
                 for command, skill in SKILLS.items():
                     if user_text.startswith(command):
                         active_skill = skill
                         logger.info("Skill activated: %s", skill["name"])
-                        # Build augmented prompt with notes if skill uses notes tools
-                        context_parts = [skill["system_prompt"]]
-                        if any(t in skill["allowed_tools"] for t in ("search_notes", "get_notes")):
-                            all_notes = notes_db.get_all_notes()
-                            if all_notes:
-                                context_parts.append("\n\n## 当前所有笔记\n")
-                                for n in all_notes:
-                                    tags_str = ", ".join(n["tags"]) if n["tags"] else "无"
-                                    context_parts.append(
-                                        f"- [{n['id']}] {n['created_at']} #{tags_str}\n  {n['content']}"
-                                    )
-                                context_parts.append("\n请根据以上笔记整理生成文档。")
-                        context_parts.append(f"\n## 用户指令\n{user_text}")
-                        augmented_text = "\n".join(context_parts)
+
+                        # Extract #tag mentions from user input
+                        raw_tags = _extract_tags(user_text)
+                        no_ask = any(phrase in user_text for phrase in ("不询问", "不问我", "不要问", "不确认"))
+                        logger.info("Extracted tags: %s, no_ask=%s", raw_tags, no_ask)
+
+                        all_db_tags = notes_db.get_all_tags()
+                        resolved_tags, ambiguous = _resolve_tags(raw_tags, all_db_tags)
+                        logger.info("Resolved: %s, Ambiguous: %s", resolved_tags, ambiguous)
+
+                        if ambiguous and not no_ask:
+                            # Ask user to confirm before proceeding
+                            pending_skill = {
+                                "skill": skill,
+                                "resolved": resolved_tags,
+                                "ambiguous": ambiguous,
+                                "original_text": user_text,
+                            }
+                            await websocket.send_json({
+                                "type": "message_complete",
+                                "payload": _tag_confirm_msg(ambiguous),
+                            })
+                            break
+
+                        if ambiguous and no_ask:
+                            # Auto-pick first match for each ambiguous tag
+                            for raw, options in ambiguous.items():
+                                resolved_tags.append(options[0])
+                                logger.info("Auto-picked '%s' for '%s'", options[0], raw)
+
+                        augmented_text = _build_skill_prompt(skill, resolved_tags, user_text)
                         break
+
+                if active_skill is None and augmented_text == user_text:
+                    # No skill matched — use original text
+                    pass
 
                 session.add_user_message(augmented_text)
                 session.clear_stop()
