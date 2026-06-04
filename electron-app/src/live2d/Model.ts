@@ -3,6 +3,7 @@ import { CubismUserModel } from './framework/model/cubismusermodel';
 import { CubismModelSettingJson } from './framework/cubismmodelsettingjson';
 import { CubismEyeBlink } from './framework/effect/cubismeyeblink';
 import { CubismBreath } from './framework/effect/cubismbreath';
+import { CubismDefaultParameterId } from './framework/cubismdefaultparameterid';
 import { CubismMatrix44 } from './framework/math/cubismmatrix44';
 import { ACubismMotion } from './framework/motion/acubismmotion';
 import { ICubismModelSetting } from './framework/icubismmodelsetting';
@@ -115,6 +116,12 @@ export class Model extends CubismUserModel {
         const mUrl = new URL(mFile, baseUrl).href;
         const mBuf = await xhrLoad(mUrl);
         const motion = this.loadMotion(mBuf, mBuf.byteLength, gName);
+        if (motion) {
+          motion.setEffectIds(
+            CubismDefaultParameterId.EyeLOpen,
+            CubismDefaultParameterId.EyeROpen
+          );
+        }
         if (!firstMotion) firstMotion = motion;
       }
     }
@@ -193,8 +200,8 @@ export class Model extends CubismUserModel {
 
     // Update all animations (matches SDK LAppModel.doUpdate)
     const deltaSeconds = 1 / 60;
-    try { this._motionManager?.updateMotion(model, deltaSeconds); } catch (e) {}
-    try { this._expressionManager?.updateMotion(model, deltaSeconds); } catch (e) {}
+    this._motionManager?.updateMotion(model, deltaSeconds);
+    this._expressionManager?.updateMotion(model, deltaSeconds);
     model.update();
     model.loadParameters();
     if (this._eyeBlink) this._eyeBlink.updateParameters(model, deltaSeconds);
