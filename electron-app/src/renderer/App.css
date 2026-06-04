@@ -668,9 +668,12 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  -webkit-app-region: drag;
   background: transparent;
+  -webkit-app-region: drag;
+}
+.live2d-click-area {
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
 /* === Live2D Avatar === */

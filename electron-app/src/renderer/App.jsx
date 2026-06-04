@@ -236,8 +236,12 @@ export default function App() {
 
   if (isLive2DOnly) {
     return (
-      <div className="live2d-only-container" onClick={() => window.electronAPI?.toggleMainWindow()}>
-        <Live2DAvatar state={avatarState} />
+      <div className="live2d-only-container">
+        <div className="live2d-click-area" onClick={() => {
+          if (window.electronAPI) window.electronAPI.toggleMainWindow();
+        }}>
+          <Live2DAvatar state={avatarState} />
+        </div>
       </div>
     );
   }
