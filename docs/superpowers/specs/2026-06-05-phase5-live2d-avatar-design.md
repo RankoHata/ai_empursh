@@ -43,7 +43,7 @@ src/renderer/components/
 | 模型 | 渲染 | 纹理 | 动画 | 备注 |
 |------|------|------|------|------|
 | Haru (SDK 示例) | ✅ | ✅ | ✅ | Cubism 5 原生模型 |
-| G36 (Girls Frontline) | ✅ | ✅ | ❌ | Cubism 3 模型，motion 不兼容 |
+| G36 (Girls Frontline) | ✅ | ✅ | ✅ | Cubism 3 模型，motion 经修复后正常循环 |
 
 ---
 
@@ -69,13 +69,16 @@ src/renderer/components/
 | 5 | 纹理必须 `renderer.bindTexture(i, id)` 注册 | 仅创建 GL texture 不够，渲染器不知道纹理存在 | `r.bindTexture(i, texId)` |
 | 6 | 矩阵必须用 `projection.multiplyByMatrix(modelMatrix)` | 直接 `setMatrix()` 会覆盖缩放/位置设置 | 先乘后设 |
 
-### 5.3 模型兼容性陷阱
+### 5.3 模型兼容性陷阱（G36 Cubism 3 → 5 迁移）
 
-| # | 问题 | 状态 |
-|---|------|------|
-| 1 | G36 motion 文件 `UserData: {Value: ""}` 空字符串 | ✅ 已修复：删除 UserData 节 |
-| 2 | G36 motion Meta 计数与实际数据不匹配（声明 225 seg 实际 538） | ✅ 已修复：重算 TotalSegmentCount/TotalPointCount |
-| 3 | G36 motion 使用 `"Target": "Parameter"` 格式（Cubism 3），Cubism 5 运行时无法解析参数引用为 null | ❌ **未修复**：需要 Cubism Editor 重新导出 motion |
+| # | 问题 | 原因 | 修复 | 状态 |
+|---|------|------|------|------|
+| 1 | `UserData: {Value: ""}` 空字符串 | 空值导致解析异常 | 删除 UserData 节 | ✅ |
+| 2 | Meta 计数与实际数据不匹配（225 seg → 538 seg） | JSON Metadata 声明的 segment/point 数量少于实际数据 | 遍历 Curves 重新计算 TotalSegmentCount/TotalPointCount | ✅ |
+| 3 | 动画不播放 | `setEffectIds` 签名是 `(Array, Array)`，但传入了单值而非数组 | `motion.setEffectIds([EyeLOpen,EyeROpen], [MouthOpenY])` | ✅ |
+| 4 | 播一次就停 | Cubism 5 不再从 JSON `"Loop": true` 读取循环标志，默认 `_isLoop = false` | `motion.setLoop(true)` | ✅ |
+| 5 | 循环点卡顿 | `paramopai` 曲线首尾值不一致（0.01 vs -0.24） | 将末帧值设为与首帧一致（0.01） | ✅ |
+| 6 | 帧率不匹配 | 固定 `1/60` delta 与真实帧率不同步 | `performance.now()` 计算真实帧间隔 | ✅ |
 
 ### 5.4 渲染陷阱
 
@@ -87,22 +90,26 @@ src/renderer/components/
 | 4 | `fetch().arrayBuffer()` 加载 moc3 失败 | Vite 可能需要 `assetsInclude` 配置 | 改用 `XMLHttpRequest` + `responseType='arraybuffer'` |
 | 5 | 纹理加载失败无报错 | 图片 `onerror` 事件静默 | 添加详细 URL 日志 |
 
+### 5.5 显示缩放陷阱
+
+| # | 问题 | 原因 | 修复 |
+|---|------|------|------|
+| 1 | 模型太小，周围大量空白 | 模型 .moc3 画布包含透明边距，修改投影矩阵无法消除 | CSS `overflow: hidden` + `transform: scale(1.5)` 放大裁切 |
+| 2 | 左右布局下模型比例失调 | 上下布局浪费空间 | 改为 flex 左右布局：左侧内容 + 右侧 Live2D 侧边栏 |
+
 ---
 
-## 6. 未解决问题
+## 6. 动画修复总结
 
-### G36 模型动画不兼容（#5.3-3）
+G36 模型是 Cubism 3 产物，motion 文件存在 5 个兼容性问题，均已在数据层面修复：
 
-**现象：** G36 模型可以正常渲染（模型+纹理都正确），但 motion 动画无法播放。
+1. **UserData 空值** — 删除空 UserData 节
+2. **Meta 计数错误** — 重算 segments/points
+3. **API 误用** — `setEffectIds()` 应传数组
+4. **Loop 标志丢失** — Cubism 5 不再解析 JSON `Loop`，需手动 `setLoop(true)`
+5. **曲线不闭环** — `paramopai` 首尾值不一致（关键！）
 
-**根因：** G36 motion 文件使用 Cubism 3 的 `"Target": "Parameter"` 格式。Cubism 5 的 `CubismMotion.doUpdateParameters()` 在查找 motion 中的参数 ID 时，返回 null 引用。这是因为 Cubism 5 的 motion 系统期望 `"Target": "Model"` 格式的参数绑定方式。
-
-**修复方向：**
-- 使用 Cubism Editor 5 重新导入模型并导出 motion（推荐）
-- 或使用 Cubism 3/4 兼容层（SDK 不提供）
-- 或使用 Haru 等 Cubism 5 原生模型
-
-**当前处理：** motion 更新被 try/catch 包裹，模型显示默认 T-pose。
+**经验教训：** Cubism 3→5 迁移中，motion JSON 文件需要逐项检查。最隐蔽的问题是曲线首尾值不匹配——只有 1/29 条曲线有问题，但就这一条导致整个动画循环卡顿。
 
 ---
 
