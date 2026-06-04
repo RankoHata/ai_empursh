@@ -59,17 +59,8 @@ export class Model extends CubismUserModel {
     this._log(`moc3: ${mocBuf.byteLength} bytes`);
     this.loadModel(mocBuf);
 
-    // 3. Expressions
-    if (this._modelSetting.getExpressionCount() > 0) {
-      for (let i = 0; i < this._modelSetting.getExpressionCount(); i++) {
-        const expFile = this._modelSetting.getExpressionFileName(i);
-        const expUrl = new URL(expFile, baseUrl).href;
-        const expBuf = await xhrLoad(expUrl);
-        const name = this._modelSetting.getExpressionName(i);
-        const motion = this.loadExpression(expBuf, expBuf.byteLength, name);
-        if (motion) this._expressionManager?.startMotionPriority(motion, false, 1);
-      }
-    }
+    // 3. Expressions (skip for now — requires CubismExpressionMotionManager setup)
+    // TODO: implement expression loading later
 
     // 4. Physics
     const physFile = this._modelSetting.getPhysicsFileName();
@@ -104,7 +95,7 @@ export class Model extends CubismUserModel {
     this._breath = CubismBreath.create();
     this._breath?.setParameters(this.getModel().getModel().getParameterIds());
 
-    // 9. Motions
+    // 9. Motions (loaded on demand via playMotion)
     const mgCount = this._modelSetting.getMotionGroupCount();
     for (let g = 0; g < mgCount; g++) {
       const gName = this._modelSetting.getMotionGroupName(g);
@@ -113,12 +104,7 @@ export class Model extends CubismUserModel {
         const mFile = this._modelSetting.getMotionFileName(gName, m);
         const mUrl = new URL(mFile, baseUrl).href;
         const mBuf = await xhrLoad(mUrl);
-        const motion = this.loadMotion(mBuf, mBuf.byteLength, gName);
-        if (motion) {
-          motion.setEffectIds(CubismDefaultParameterId.EyeLOpen, CubismDefaultParameterId.EyeROpen);
-          const key = mFile.split('/').pop()!.replace('.motion3.json', '');
-          this._motions.set(key, motion);
-        }
+        this.loadMotion(mBuf, mBuf.byteLength, gName);
       }
     }
 
