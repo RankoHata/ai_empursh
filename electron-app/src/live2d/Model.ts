@@ -93,7 +93,6 @@ export class Model extends CubismUserModel {
 
     // 8. Breath
     this._breath = CubismBreath.create();
-    this._breath?.setParameters(this.getModel().getModel().getParameterIds());
 
     // 9. Motions (loaded on demand via playMotion)
     const mgCount = this._modelSetting.getMotionGroupCount();
