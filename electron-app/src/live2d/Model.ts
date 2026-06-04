@@ -122,6 +122,7 @@ export class Model extends CubismUserModel {
             [CubismDefaultParameterId.ParamMouthOpenY]
           );
           motion.setLoop(true);
+          motion.setLoopFadeIn(true);
           motion.setMotionBehavior(2);
         }
         if (!firstMotion) firstMotion = motion;
