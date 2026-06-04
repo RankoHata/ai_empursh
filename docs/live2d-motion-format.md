@@ -1,6 +1,7 @@
 # Cubism 5 Motion 文件格式参考
 
 > 基于 Cubism SDK for Web 5-r.5 源码逆向分析，用于编写自定义 motion 文件。
+> **注：** motion 文件格式为 Version 3，这是 Cubism 3/4/5 通用的最新版。SDK 版本号（5）不等于 motion 格式版本号（3）。
 
 ---
 
