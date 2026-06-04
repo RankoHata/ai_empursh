@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 
 const MODEL_URL = 'assets/live2d/g36_1904/normal/normal.model3.json';
 
-export default function Live2DAvatar({ state = 'idle' }) {
+export default function Live2DAvatar({ state = 'idle', onContextMenu }) {
   const canvasRef = useRef(null);
   const modelRef = useRef(null);
   const glRef = useRef(null);
@@ -92,7 +92,7 @@ export default function Live2DAvatar({ state = 'idle' }) {
   }, [state, status]);
 
   return (
-    <div className="live2d-container">
+    <div className="live2d-container" onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(); }}>
       <canvas ref={canvasRef} className="live2d-canvas" width="480" height="960" />
       {status === 'loading' && <div className="live2d-loading">加载中...</div>}
       {status.startsWith('error') && <div className="live2d-error">⚠️ {status}</div>}

@@ -671,9 +671,9 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   background: transparent;
   -webkit-app-region: drag;
 }
-.live2d-click-area {
-  cursor: pointer;
+.live2d-only-container .live2d-container {
   -webkit-app-region: no-drag;
+  cursor: context-menu;
 }
 
 /* === Live2D Avatar === */
