@@ -7,6 +7,15 @@ import { CubismDefaultParameterId } from './framework/cubismdefaultparameterid';
 import { ACubismMotion } from './framework/motion/acubismmotion';
 import { ICubismModelSetting } from './framework/icubismmodelsetting';
 
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 let _fwStarted = false;
 function ensureFramework() {
   if (!_fwStarted) {
@@ -110,14 +119,36 @@ export class Model extends CubismUserModel {
     this._log('Setup complete');
   }
 
-  initRenderer(gl: WebGLRenderingContext, shaderPath: string): void {
+  async initRenderer(gl: WebGLRenderingContext, shaderPath: string, baseUrl: string): Promise<void> {
     this.createRenderer();
     const r = this.getRenderer();
     r.initialize(this.getModel(), gl);
     r.setIsPremultipliedAlpha(true);
     r.startUp(gl);
-    // Load shaders from our assets directory
     r.loadShaders(shaderPath);
+
+    // Load textures
+    if (this._modelSetting) {
+      const texCount = this._modelSetting.getTextureCount();
+      for (let i = 0; i < texCount; i++) {
+        const texFile = this._modelSetting.getTextureFileName(i);
+        const texUrl = this._modelSetting.getTextureDirectory()
+          ? new URL(this._modelSetting.getTextureDirectory() + texFile, baseUrl).href
+          : new URL(texFile, baseUrl).href;
+        this._log(`Loading texture: ${texUrl}`);
+        const img = await loadImage(texUrl);
+        const texId = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texId);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+      }
+    }
+
     // Center model
     const m = this.getModel();
     if (m) {
