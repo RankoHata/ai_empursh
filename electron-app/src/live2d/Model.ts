@@ -184,19 +184,28 @@ export class Model extends CubismUserModel {
       projection.scale(ch / cw, 1.0);
     }
 
-    // Update all animations (matches SDK LAppModel.update)
+    // Update all animations (matches SDK LAppModel.doUpdate)
     const deltaSeconds = 1 / 60;
     this._motionManager?.updateMotion(model, deltaSeconds);
     this._expressionManager?.updateMotion(model, deltaSeconds);
     model.update();
     model.loadParameters();
     if (this._eyeBlink) this._eyeBlink.updateParameters(model, deltaSeconds);
+    // Physics and pose updates
+    const physics = (this as any)._physics;
+    if (physics) physics.evaluate(model, deltaSeconds);
+    const pose = (this as any)._pose;
+    if (pose) pose.updateParameters(model, deltaSeconds);
 
-    // Set matrix then draw
+    // Matrix: multiply projection by model matrix, then set (matches SDK demo)
+    projection.multiplyByMatrix(this.getModelMatrix());
     this.getModelMatrix().setMatrix(projection);
     this.getRenderer().drawModel(this._shaderPath);
 
     model.saveParameters();
+
+    // Offscreen buffer cleanup (required after drawModel)
+    CubismWebGLOffscreenManager.getInstance().endFrameProcess(gl);
   }
 
   playMotion(name: string): void {
