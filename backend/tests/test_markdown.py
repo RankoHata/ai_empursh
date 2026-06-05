@@ -96,6 +96,8 @@ def test_strips_table_formatting():
     assert "值2" in result
     assert "|" not in result
     assert "---" not in result
+    assert not result.startswith("，")
+    assert not result.endswith("，")
 
 
 def test_handles_none():

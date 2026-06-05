@@ -5,6 +5,7 @@ Strips Markdown syntax from a string, producing human-readable plain text.
 Pure function -- no external dependencies, no side effects.
 """
 import re
+from typing import Optional
 
 # Code blocks: ```...``` -> "（此处有一段代码）"
 _CODE_BLOCK_RE = re.compile(r'```[^\n]*\n.*?\n```', re.DOTALL)
@@ -53,7 +54,7 @@ _TABLE_PIPE_RE = re.compile(r'\s*\|\s*')
 _EXCESS_NL_RE = re.compile(r'\n{3,}')
 
 
-def strip_markdown(text):
+def strip_markdown(text: Optional[str]) -> str:
     """Strip Markdown syntax, returning human-readable plain text.
 
     Args:
@@ -83,8 +84,9 @@ def strip_markdown(text):
     # 6. Strikethrough
     text = _STRIKE_RE.sub(r'\1', text)
 
-    # 7. Inline code -- strip backticks (after bold/italic/strikethrough
-    #    to preserve literal-text semantics of backtick-wrapped content)
+    # 7. Inline code -- strip backticks
+    #    (after bold/italic/strikethrough so that markers inside backticks
+    #     are already cleaned -- producing more speech-friendly output)
     text = _INLINE_CODE_RE.sub(r'\1', text)
 
     # 8. HTML tags
@@ -105,6 +107,10 @@ def strip_markdown(text):
 
     # 13. Table pipes -> comma
     text = _TABLE_PIPE_RE.sub('，', text)
+
+    # Strip leading/trailing commas from table rows
+    text = re.sub(r'^\s*，\s*', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\s*，\s*$', '', text, flags=re.MULTILINE)
 
     # 14. Ordered lists
     text = _OL_RE.sub('', text)
