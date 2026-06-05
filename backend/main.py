@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from openai import AsyncOpenAI
 
 from agent.chat import ChatSession
@@ -108,10 +108,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AI Companion Backend", lifespan=lifespan)
 
 
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 TEMP_DIR = Path(__file__).parent / "temp"
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+# In-memory map of stream_id → text for streaming TTS
+# Populated by _synthesize_and_send(), consumed by /audio/stream/{stream_id}
+_tts_streams: dict[str, str] = {}
 
 
 @app.get("/")
@@ -126,6 +130,36 @@ async def serve_audio(filename: str):
     if not file_path.exists():
         return {"error": "File not found"}, 404
     return FileResponse(file_path, media_type="audio/mpeg")
+
+
+@app.get("/audio/stream/{stream_id}")
+async def stream_audio(stream_id: str, request: Request):
+    """Stream TTS audio chunks as they are synthesized.
+
+    The client connects once, receives MP3 byte chunks as they arrive
+    from edge-tts, and the browser's <audio> tag decodes and plays them
+    incrementally.  When the client disconnects (pause / new message),
+    `request.is_disconnected` becomes True and we stop streaming.
+    """
+    text = _tts_streams.pop(stream_id, None)
+    if text is None:
+        return {"error": "Stream not found or already consumed"}, 404
+
+    async def generate():
+        try:
+            async for chunk in voice_tts.stream_synthesize(text):
+                if await request.is_disconnected():
+                    logger.info("TTS client disconnected for stream %s", stream_id)
+                    break
+                yield chunk
+        except Exception as exc:
+            logger.error("TTS stream error for %s: %s", stream_id, exc)
+
+    return StreamingResponse(
+        generate(),
+        media_type="audio/mpeg",
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 def _extract_tags(text: str) -> list[str]:
@@ -237,18 +271,24 @@ def _timestamp() -> str:
 
 
 async def _synthesize_and_send(websocket: WebSocket, text: str):
-    """Background task: synthesize speech and send URL to frontend."""
+    """Background task: register a streaming TTS session and send URL to frontend.
+
+    The actual synthesis happens inside GET /audio/stream/{stream_id},
+    where edge-tts streams MP3 chunks directly to the browser's <audio> tag.
+    """
+    stream_id = os.urandom(6).hex()
     try:
         await _ws_send_safe(websocket, "avatar_state", {"action": "speaking"})
-        mp3_path = await voice_tts.synthesize(text)
-        filename = Path(mp3_path).name
-        await _ws_send_safe(websocket, "play_audio", {"url": f"http://127.0.0.1:8765/audio/{filename}"})
+        _tts_streams[stream_id] = text
+        await _ws_send_safe(websocket, "play_audio", {
+            "url": f"http://127.0.0.1:8765/audio/stream/{stream_id}"
+        })
     except asyncio.CancelledError:
-        logger.info("TTS task cancelled")
+        _tts_streams.pop(stream_id, None)
+        raise
     except Exception as exc:
+        _tts_streams.pop(stream_id, None)
         logger.error("TTS error: %s", exc)
-    finally:
-        await _ws_send_safe(websocket, "avatar_state", {"action": "idle"})
 
 
 async def _ws_send_safe(websocket: WebSocket, msg_type: str, payload: dict):

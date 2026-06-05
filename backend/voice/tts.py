@@ -31,3 +31,19 @@ async def synthesize(text: str, output_path: str | None = None) -> str:
 def synthesize_sync(text: str, output_path: str | None = None) -> str:
     """Synchronous wrapper for synthesize."""
     return asyncio.run(synthesize(text, output_path))
+
+
+async def stream_synthesize(text: str):
+    """Stream TTS audio chunks using edge-tts.
+
+    Yields raw MP3 byte chunks as they arrive from Microsoft's service.
+    Usage:
+        async for chunk in stream_synthesize(text):
+            yield chunk  # bytes
+    """
+    import edge_tts
+
+    communicate = edge_tts.Communicate(text=text, voice=VOICE)
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            yield chunk["data"]
