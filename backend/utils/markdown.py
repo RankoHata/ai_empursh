@@ -68,32 +68,34 @@ def strip_markdown(text):
     # 1. Code blocks -- replace with hint
     text = _CODE_BLOCK_RE.sub('（此处有一段代码）', text)
 
-    # 2. Inline code -- strip backticks
-    text = _INLINE_CODE_RE.sub(r'\1', text)
-
-    # 3. Images -- replace with placeholder
+    # 2. Images -- replace with placeholder
     text = _IMAGE_RE.sub('[图片]', text)
 
-    # 4. Links -- keep text
+    # 3. Links -- keep text
     text = _LINK_RE.sub(r'\1', text)
 
-    # 5. Bold
+    # 4. Bold
     text = _BOLD_RE.sub(r'\1\2', text)
 
-    # 6. Italic (after bold to avoid ** conflicts)
+    # 5. Italic (after bold to avoid ** conflicts)
     text = _ITALIC_RE.sub(r'\1\2', text)
 
-    # 7. Strikethrough
+    # 6. Strikethrough
     text = _STRIKE_RE.sub(r'\1', text)
+
+    # 7. Inline code -- strip backticks (after bold/italic/strikethrough
+    #    to preserve literal-text semantics of backtick-wrapped content)
+    text = _INLINE_CODE_RE.sub(r'\1', text)
 
     # 8. HTML tags
     text = _HTML_RE.sub('', text)
 
-    # 9. Headings -- strip # markers
-    text = _HEADING_RE.sub('', text)
-
-    # 10. Blockquotes -- strip > markers
+    # 9. Blockquotes -- strip > markers (before headings so that
+    #    "> # text" correctly yields "text", not "# text")
     text = _BLOCKQUOTE_RE.sub('', text)
+
+    # 10. Headings -- strip # markers
+    text = _HEADING_RE.sub('', text)
 
     # 11. Horizontal rules -- remove
     text = _HR_RE.sub('', text)

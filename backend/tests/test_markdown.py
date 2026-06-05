@@ -48,6 +48,11 @@ def test_strips_blockquotes():
     assert strip_markdown("> 第一行\n> 第二行") == "第一行\n第二行"
 
 
+def test_blockquote_with_heading():
+    assert strip_markdown("> # 标题") == "标题"
+    assert strip_markdown("> ## 二级") == "二级"
+
+
 def test_strips_unordered_lists():
     assert strip_markdown("- 项目一") == "项目一"
     assert strip_markdown("* 星号列表") == "星号列表"
@@ -80,6 +85,17 @@ def test_removes_excess_newlines():
 def test_handles_empty_string():
     assert strip_markdown("") == ""
     assert strip_markdown("   ") == ""
+
+
+def test_strips_table_formatting():
+    text = "| 列A | 列B |\n|-----|-----|\n| 值1 | 值2 |"
+    result = strip_markdown(text)
+    assert "列A" in result
+    assert "列B" in result
+    assert "值1" in result
+    assert "值2" in result
+    assert "|" not in result
+    assert "---" not in result
 
 
 def test_handles_none():
