@@ -19,8 +19,8 @@ Electron + React 桌面应用，通过 WebSocket 与 Python FastAPI 后端通信
                                                 ├── agent/chat.py
                                                 ├── agent/skills.py
                                                 ├── db/notes.py
-                                                ├── voice/stt.py, tts.py
-                                                └── (前端) Cubism 5 + Model.ts
+                                                ├── utils/markdown.py   (Markdown→纯文本)
+                                                └── voice/stt.py, tts.py
 ```
 
 **双窗口**: Electron 启动时创建两个 BrowserWindow。宠物窗口始终可见（`alwaysOnTop`），主窗口默认隐藏，点击宠物弹出。
@@ -163,8 +163,13 @@ backend/
 │   ├── ✏️  __init__.py
 │   ├── ✏️  stt.py              faster-whisper 语音识别 + VAD
 │   └── ✏️  tts.py              edge-tts 语音合成
+├── ✏️  utils/
+│   ├── ✏️  __init__.py
+│   └── ✏️  markdown.py         strip_markdown() — 剥离 Markdown 语法，供 TTS 用
 ├── ✏️  skills/
 │   └── ✏️  material_organizer.md   /整理 技能定义
+├── ✏️  tests/
+│   └── ✏️  test_markdown.py    strip_markdown() 单元测试（19 个）
 ├── 🔧 data/                    SQLite 数据库文件（gitignore）
 ├── 🔧 models/                  faster-whisper 下载的模型（gitignore）
 └── 🔧 temp/                    临时音频文件（gitignore）
@@ -174,7 +179,7 @@ backend/
 
 ```
 electron-app/
-├── ✏️  package.json            依赖 + 脚本
+├── ✏️  package.json            依赖 + 脚本（含 react-markdown, remark-gfm）
 ├── ✏️  forge.config.js         Electron Forge 打包配置
 ├── ✏️  vite.*.config.mjs       Vite 构建配置
 ├── ✏️  index.html              HTML 入口 + CSP
@@ -191,7 +196,7 @@ electron-app/
 │   │   │   └── ✏️  useWebSocket.js   WS 连接管理 + 指数退避重连
 │   │   └── ✏️  components/
 │   │       ├── ✏️  ChatPanel.jsx       聊天面板 + 右键菜单 + 录音
-│   │       ├── ✏️  MessageBubble.jsx   消息气泡
+│   │       ├── ✏️  MessageBubble.jsx   消息气泡（助手 Markdown 渲染，用户纯文本）
 │   │       ├── ✏️  StatusBar.jsx       连接状态 + TTS/常开开关
 │   │       ├── ✏️  TabBar.jsx          标签栏
 │   │       ├── ✏️  NotesPanel.jsx      笔记面板
@@ -247,6 +252,14 @@ electron-app/
 前端→后端: `chat`, `stop`, `add_note`, `get_notes`, `search_notes`, `delete_note`, `export_notes`, `voice_input`, `voice_mode`, `get_config`, `update_config`, `save_file`, `tts_enabled`
 
 后端→前端: `message_chunk`, `message_complete`, `error`, `voice_result`, `play_audio`, `avatar_state`, `voice_status`, `notes_list`, `note_saved`, `note_deleted`, `search_results`, `notes_exported`, `markdown_preview`, `file_saved`, `config`, `config_updated`
+
+## Markdown 渲染
+
+**聊天显示**: `MessageBubble.jsx` 对助手消息使用 `ReactMarkdown` + `remark-gfm` 渲染。支持 GFM 扩展（表格、删除线、任务列表）。用户消息保持纯文本。暗色主题 CSS 样式在 `App.css` 的 `.bubble-content` 区。
+
+**TTS 语音播报**: `backend/utils/markdown.py` 中的 `strip_markdown()` 在 TTS 合成前剥离 Markdown 语法字符。代码块替换为"（此处有一段代码）"，链接保留文字去掉 URL，图片替换为"[图片]"。`main.py` 的 `_synthesize_and_send()` 自动调用。
+
+**笔记保存**: 右键"保存为笔记"保存原始 Markdown 文本（未经渲染），以便编辑和导出。
 
 ## 环境约束
 
