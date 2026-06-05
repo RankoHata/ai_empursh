@@ -282,9 +282,13 @@ motion.setMotionBehavior(2);  // MotionBehavior_V2
 
 ## 6. 已知陷阱
 
-1. **Meta 计数错误** → 解析器崩溃。必须 ≥ 实际值。
-2. **`setEffectIds` 签名为数组** → 传单值而非数组导致 `_eyeBlinkParameterIds` 为 undefined。
-3. **Cubism 5 不解析 JSON 的 `Loop` 字段** → 必须 `motion.setLoop(true)`。源码 `cubismmotion.ts:348` 注释掉了 `_loop` 赋值。
-4. **Bezier 控制点的 t 值可能为负数** → 这是正常的，用于 "受限贝塞尔" 编码。
-5. **`correctEndPoint` 永远产生线性过渡** → 非贝塞尔。首尾值对齐时平滑，不对齐时有速度突变。
-6. **G36/Cubism 3 模型常见问题** → Meta 计数偏小，paramopai 透明度曲线首尾值不匹配。
+1. **Meta 计数错误** → 解析器崩溃。推荐设 1150 安全值（比实际大即可，精确值容易算错）。
+2. **Meta 必须大于实际** → Cubism 5 会校验但设为 1150 对所有模型都安全。设精确值反而容易算错导致越界。
+3. **Cubism 5 同 group 不支持多个 motion** → 加载第二个 motion 时解析器内部状态冲突崩溃。model3.json 的每个 group 只能放一个 motion。
+4. **`setEffectIds` 签名为数组** → 传单值而非数组导致 `_eyeBlinkParameterIds` 为 undefined。正确：`setEffectIds([EyeLOpen,EyeROpen], [MouthOpenY])`。
+5. **Cubism 5 不解析 JSON 的 `Loop` 字段** → 必须 `motion.setLoop(true)`。源码 `cubismmotion.ts:348` 注释掉了 `_loop` 赋值。
+6. **三个必须的代码设置** → `setLoop(true)` + `setLoopFadeIn(true)` + `setMotionBehavior(2)`，缺一就崩溃或不循环。
+7. **Bezier 控制点的 t 值可能为负数** → 这是正常的，用于 "受限贝塞尔" 编码。
+8. **`correctEndPoint` 永远产生线性过渡** → 非贝塞尔。首尾值对齐时平滑，不对齐时有速度突变。
+9. **G36/Cubism 3 模型常见问题** → Meta 计数偏小导致崩溃（必须修）；paramopai 透明度曲线首尾值不匹配导致循环不流畅（不修也能跑）。
+10. **`TotalSegmentCount`/`TotalPointCount` 必须精确匹配** → 自定义 motion 需要精确计算。安全值对原始模型可行但对自写 motion 可能触发 CSM_ASSERT。

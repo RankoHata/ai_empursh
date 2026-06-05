@@ -8,18 +8,24 @@ Electron + React 桌面应用，通过 WebSocket 与 Python FastAPI 后端通信
 ## 架构
 
 ```
-Electron (main.js)
-  └── React 渲染进程 (ChatPanel, NotesPanel, SettingsPanel, Live2DAvatar)
-        │ WebSocket ws://127.0.0.1:8765/ws
-        ▼
-Python FastAPI (main.py)
-  ├── agent/chat.py          ChatSession — DeepSeek 流式聊天
-  ├── agent/skills.py        技能加载器 (skills/*.md)
-  ├── db/notes.py            SQLite + FTS5 笔记 CRUD
-  ├── voice/stt.py           faster-whisper 本地语音识别
-  ├── voice/tts.py           edge-tts 语音合成
-  └── live2d (前端)           Cubism 5 SDK Framework + Model.ts
+┌─────────────────────────────────┐     IPC      ┌───────────────────────────┐
+│  live2dWindow (桌面宠物)        │ ←──────────→ │  mainWindow (主应用)       │
+│  400×600, 透明, 无边框, 置顶    │  toggle/move │  1320×780, 启动时隐藏      │
+│  ?mode=live2d → 仅Live2D+拖拽  │              │  完整聊天/笔记/设置界面    │
+└─────────────────────────────────┘              └──────────┬────────────────┘
+                                                          │ WebSocket
+                                                          ▼
+                                              Python FastAPI (main.py)
+                                                ├── agent/chat.py
+                                                ├── agent/skills.py
+                                                ├── db/notes.py
+                                                ├── voice/stt.py, tts.py
+                                                └── (前端) Cubism 5 + Model.ts
 ```
+
+**双窗口**: Electron 启动时创建两个 BrowserWindow。宠物窗口始终可见（`alwaysOnTop`），主窗口默认隐藏，点击宠物弹出。
+
+**页面路由**: 同 HTML，`?mode=live2d` 参数区分。宠物模式不加载 WebSocket/聊天，只渲染 Live2D + JS 拖拽。
 
 ## 环境搭建（新机器从零开始）
 
