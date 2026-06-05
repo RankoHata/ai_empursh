@@ -669,34 +669,12 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   align-items: center;
   justify-content: center;
   background: transparent;
-  -webkit-app-region: drag;
+  cursor: pointer;
 }
 .live2d-only-container .live2d-container {
   width: 85%;
   height: 85%;
-  -webkit-app-region: drag;
-}
-.live2d-toggle-btn {
-  position: absolute;
-  bottom: 5%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(233, 69, 96, 0.8);
-  color: white;
-  font-size: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-  z-index: 10;
-  transition: transform 0.2s;
-}
-.live2d-toggle-btn:hover {
-  transform: translateX(-50%) scale(1.2);
+  pointer-events: none;
 }
 
 /* === Live2D Avatar === */

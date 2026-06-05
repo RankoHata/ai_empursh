@@ -8,4 +8,5 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   toggleMainWindow: () => ipcRenderer.send('toggle-main-window'),
+  moveLive2dWindow: (dx, dy) => ipcRenderer.send('move-live2d-window', dx, dy),
 });

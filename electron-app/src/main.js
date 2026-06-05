@@ -84,6 +84,13 @@ ipcMain.on('toggle-main-window', () => {
   }
 });
 
+// IPC: live2d window drag → move window
+ipcMain.on('move-live2d-window', (_event, dx, dy) => {
+  if (!live2dWindow) return;
+  const [x, y] = live2dWindow.getPosition();
+  live2dWindow.setPosition(x + dx, y + dy);
+});
+
 function createTray() {
   const icon = nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAOElEQVQ4T2NkYPj/n4EBBJgYKAQMowYM/ccCkA0YNoDmYf8/A8P/fwwMDAz/GRj+M1BmAAOhCgBWuQYrnC6FJgAAAABJRU5ErkJggg=='

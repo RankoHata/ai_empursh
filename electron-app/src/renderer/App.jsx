@@ -231,19 +231,47 @@ export default function App() {
     send('update_config', { updates });
   }, [send]);
 
-  // Live2D-only desktop pet mode
+  // Live2D-only desktop pet mode — JS drag + click to toggle
   const isLive2DOnly = window.location.search.includes('mode=live2d');
+  const petDragRef = useRef({ startX: 0, startY: 0, moved: false });
+  const petClickRef = useRef(null);
 
   if (isLive2DOnly) {
     const toggleMain = () => {
       if (window.electronAPI) window.electronAPI.toggleMainWindow();
     };
+
+    const onPetMouseDown = (e) => {
+      petDragRef.current = { startX: e.screenX, startY: e.screenY, moved: false };
+      petClickRef.current = { x: e.screenX, y: e.screenY };
+
+      const onMove = (ev) => {
+        const dx = ev.screenX - petClickRef.current.x;
+        const dy = ev.screenY - petClickRef.current.y;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+          petDragRef.current.moved = true;
+        }
+        if (window.electronAPI?.moveLive2dWindow) {
+          window.electronAPI.moveLive2dWindow(dx, dy);
+        }
+        petClickRef.current = { x: ev.screenX, y: ev.screenY };
+      };
+
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        if (!petDragRef.current.moved) {
+          toggleMain();
+        }
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+
     return (
-      <div className="live2d-only-container">
+      <div className="live2d-only-container" onMouseDown={onPetMouseDown}>
         <Live2DAvatar state={avatarState} />
-        <div className="live2d-toggle-btn" onClick={toggleMain}>
-          💬
-        </div>
       </div>
     );
   }
