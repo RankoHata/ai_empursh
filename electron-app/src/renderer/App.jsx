@@ -239,8 +239,11 @@ export default function App() {
       if (window.electronAPI) window.electronAPI.toggleMainWindow();
     };
     return (
-      <div className="live2d-only-container" onDoubleClick={toggleMain}>
+      <div className="live2d-only-container">
         <Live2DAvatar state={avatarState} />
+        <div className="live2d-toggle-btn" onClick={toggleMain}>
+          💬
+        </div>
       </div>
     );
   }
