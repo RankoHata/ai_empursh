@@ -50,8 +50,8 @@ function createMainWindow() {
 
 function createLive2dWindow() {
   live2dWindow = new BrowserWindow({
-    width: 250,
-    height: 400,
+    width: 400,
+    height: 600,
     x: 1200,
     y: 100,
     transparent: true,
@@ -60,7 +60,6 @@ function createLive2dWindow() {
     skipTaskbar: true,
     resizable: false,
     hasShadow: false,
-    useContentSize: true,
     backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
