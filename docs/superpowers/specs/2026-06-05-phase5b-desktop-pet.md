@@ -46,6 +46,31 @@
 
 App.jsx 检测 `window.location.search.includes('mode=live2d')` 决定渲染内容。
 
+### 窗口尺寸与模型适配
+
+**问题：** Live2D 模型的 `.moc3` 画布包含透明边距，角色实际可见区域（~250×360）远小于画布（480×960）。直接缩小窗口会让角色跟着变小。
+
+**解决：** 保持高分辨率画布（480×960），通过 CSS 缩放+裁剪：
+
+```css
+/* 宠物窗口容器：裁剪溢出 */
+.live2d-only-container .live2d-container {
+  width: 100%; height: 100%;
+  overflow: hidden;          /* 裁掉画布边距 */
+}
+
+/* 高分辨率画布：居中 + 放大填满小窗口 */
+.live2d-only-container .live2d-canvas {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%) scale(1.5);
+}
+```
+
+**原理：** 画布 480×960 居中放在 250×360 窗口内，`scale(1.5)` 放大 1.5 倍后，画布等效于 720×1440，窗口只显示中心 250×360 → 角色填满窗口，死区被裁掉。角色清晰度不变（高分辨率下采样）。
+
+**注意：** 宠物模式的 CSS 规则独立于侧边栏——侧边栏有自己的 `scale(1.5)` 规则（`.live2d-sidebar .live2d-canvas`），两者不冲突。
+
 ---
 
 ## 3. JS 拖拽实现
@@ -128,6 +153,8 @@ const onPetMouseDown = (e) => {
 | 4 | 宠物窗口任务栏可见 | 默认 BrowserWindow 显示在任务栏 | `skipTaskbar: true` |
 | 5 | 宠物窗口关闭时退出应用 | `window-all-closed` 事件 | 不调用 `app.quit()`，改为不处理 |
 | 6 | 主窗口关闭时退出 | 默认行为 | `mainWindow.on('close')` 改为 `hide()` |
+| 7 | 缩小窗口后角色跟着变小 | 画布缩小导致分辨率不足 | 保持 480×960 画布 + CSS `overflow:hidden` + `scale(1.5)` 裁剪边距 |
+| 8 | 宠物和侧边栏样式互相影响 | 共用 `.live2d-canvas` 选择器 | 用父选择器隔离：`.live2d-only-container .live2d-canvas` vs `.live2d-sidebar .live2d-canvas` |
 
 ---
 
