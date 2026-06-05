@@ -1,4 +1,6 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function MessageBubble({ message }) {
   const { id, role, content, isStreaming, timestamp } = message;
@@ -21,7 +23,15 @@ export default function MessageBubble({ message }) {
   return (
     <div className={bubbleClass} data-msg-id={id}>
       <span className="bubble-label">{label}</span>
-      <div className={contentClass}>{content}</div>
+      <div className={contentClass}>
+        {role === 'assistant' ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {content}
+          </ReactMarkdown>
+        ) : (
+          content
+        )}
+      </div>
       {timeStr && <span className="bubble-timestamp">{timeStr}</span>}
     </div>
   );
