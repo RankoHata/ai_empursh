@@ -31,6 +31,7 @@ from db import notes as notes_db
 from voice import stt
 from voice import tts as voice_tts
 from agent import skills as skills_lib
+from utils.markdown import strip_markdown
 
 # Load skills on startup
 SKILLS = skills_lib.load_skills()
@@ -279,7 +280,7 @@ async def _synthesize_and_send(websocket: WebSocket, text: str):
     stream_id = os.urandom(6).hex()
     try:
         await _ws_send_safe(websocket, "avatar_state", {"action": "speaking"})
-        _tts_streams[stream_id] = text
+        _tts_streams[stream_id] = strip_markdown(text)
         await _ws_send_safe(websocket, "play_audio", {
             "url": f"http://127.0.0.1:8765/audio/stream/{stream_id}"
         })
