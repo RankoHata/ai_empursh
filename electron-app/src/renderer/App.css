@@ -672,9 +672,19 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   cursor: pointer;
 }
 .live2d-only-container .live2d-container {
-  width: 100%;
-  height: 100%;
+  width: 250px;
+  height: 400px;
+  overflow: hidden;
   pointer-events: none;
+}
+.live2d-only-container .live2d-canvas {
+  width: 480px;
+  height: 960px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(1.8);
+  transform-origin: center center;
 }
 
 /* === Live2D Avatar === */
