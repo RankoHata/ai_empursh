@@ -1,7 +1,7 @@
 """ToolDefinition -- data class describing a callable tool for the model."""
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 
 @dataclass
@@ -21,7 +21,7 @@ class ToolDefinition:
     description: str
     parameters: dict[str, Any]
     required: list[str]
-    executor: Callable[..., Any]  # async (**_kw) -> dict
+    executor: Callable[..., Awaitable[dict[str, Any]]]
     display_name: str = ""
 
     def __post_init__(self) -> None:
