@@ -31,10 +31,14 @@ from db import notes as notes_db
 from voice import stt
 from voice import tts as voice_tts
 from agent import skills as skills_lib
+from tools import create_default_registry
 from utils.markdown import strip_markdown
 
 # Load skills on startup
 SKILLS = skills_lib.load_skills()
+
+# Tool registry — created once at module load, shared across connections
+tool_registry = create_default_registry()
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -163,106 +167,12 @@ async def stream_audio(stream_id: str, request: Request):
     )
 
 
-def _extract_tags(text: str) -> list[str]:
-    """Extract #tag mentions from user input. Returns deduplicated list."""
-    import re
-    tags = re.findall(r"#([^\s,，。.!！?？]+)", text)
-    return list(dict.fromkeys(tags))  # deduplicate, preserve order
+def _build_skill_prompt(skill: dict, user_text: str) -> str:
+    """Build the augmented prompt for a skill (system prompt + user text only).
 
-
-def _resolve_tags(
-    mentioned: list[str], all_db_tags: list[str]
-) -> tuple[list[str], dict[str, list[str]]]:
-    """Match mentioned tags against DB tags.
-
-    Returns (resolved_tags, ambiguous):
-      - resolved_tags: list of tag names with a single clear match
-      - ambiguous: dict of {mentioned: [possible_db_tags]} for tags with multiple/no matches
+    Note data is no longer injected here — the model will call tools to retrieve it.
     """
-    resolved = []
-    ambiguous = {}
-
-    for raw in mentioned:
-        # 1. Exact match
-        if raw in all_db_tags:
-            resolved.append(raw)
-            continue
-
-        # 2. Substring match (mentioned appears inside DB tag, or vice versa)
-        matches = [t for t in all_db_tags if raw.lower() in t.lower() or t.lower() in raw.lower()]
-        if len(matches) == 1:
-            resolved.append(matches[0])
-        elif len(matches) > 1:
-            ambiguous[raw] = matches
-        else:
-            # No match — list all tags as options
-            ambiguous[raw] = all_db_tags[:20]  # limit to 20
-
-    return resolved, ambiguous
-
-
-def _tag_confirm_msg(ambiguous: dict[str, list[str]]) -> dict:
-    """Build a tag confirmation message payload."""
-    lines = ["🤔 **请确认你想使用的标签：**\n"]
-    for tag, options in ambiguous.items():
-        lines.append(f"**`#{tag}`** 匹配到：")
-        for j, opt in enumerate(options[:10], 1):
-            lines.append(f"  {j}. `{opt}`")
-        lines.append("")
-    lines.append("请回复标签名确认（如 `工作`），或添加 `不询问` 让系统自动选择。")
-    return {"full_content": "\n".join(lines), "partial": False}
-
-
-def _build_skill_prompt(skill: dict, tags: list[str], user_text: str) -> str:
-    """Build the augmented prompt for a skill with note context."""
-    context_parts = [skill["system_prompt"]]
-
-    if any(t in skill["allowed_tools"] for t in ("search_notes", "get_notes")):
-        notes = notes_db.search_notes(tags=tags if tags else None)
-        if notes:
-            tag_label = ", ".join(tags) if tags else "全部"
-            context_parts.append(f"\n\n## 检索到的笔记（标签: {tag_label}）\n")
-            for n in notes:
-                tags_str = ", ".join(n["tags"]) if n["tags"] else "无"
-                context_parts.append(
-                    f"- [{n['id']}] {n['created_at']} #{tags_str}\n  {n['content']}"
-                )
-            context_parts.append(f"\n共 {len(notes)} 条笔记。请根据以上内容整理生成文档。")
-        else:
-            context_parts.append("\n\n（未找到匹配的笔记，请告知用户。）")
-
-    context_parts.append(f"\n## 用户指令\n{user_text}")
-    return "\n".join(context_parts)
-
-
-def _parse_confirmation(text: str, ambiguous: dict[str, list[str]]) -> list[str] | None:
-    """Try to parse a user confirmation message for tag selection.
-
-    Returns list of confirmed tag names, or None if unable to parse.
-    """
-    text_stripped = text.strip()
-    all_options = []
-    for options in ambiguous.values():
-        all_options.extend(options)
-
-    confirmed = []
-    for part in text_stripped.replace(",", " ").replace("，", " ").split():
-        part = part.strip().lstrip("#")
-        # Check if it's a number reference
-        if part.isdigit():
-            idx = int(part) - 1
-            if 0 <= idx < len(all_options):
-                confirmed.append(all_options[idx])
-        # Check if it matches a DB tag name
-        elif part in all_options:
-            confirmed.append(part)
-        else:
-            # Try case-insensitive match
-            match = next((t for t in all_options if t.lower() == part.lower()), None)
-            if match:
-                confirmed.append(match)
-
-    return confirmed if confirmed else None
+    return f"{skill['system_prompt']}\n\n## 用户指令\n{user_text}"
 
 
 def _timestamp() -> str:
@@ -306,14 +216,39 @@ async def websocket_chat(websocket: WebSocket):
     logger.info("WebSocket client connected")
 
     client = get_openai_client()
+
+    # Per-connection tool callbacks (capture websocket in closure)
+    async def on_tool_call(name: str, args: dict):
+        await _ws_send_safe(websocket, "tool_call_start", {
+            "name": name,
+            "args": args,
+        })
+
+    async def on_tool_result(name: str, result: dict):
+        duration_ms = result.pop("_duration_ms", 0) if isinstance(result, dict) else 0
+        success = result.get("success", True) if isinstance(result, dict) else True
+        if success:
+            await _ws_send_safe(websocket, "tool_call_result", {
+                "name": name,
+                "result": result,
+                "duration_ms": duration_ms,
+            })
+        else:
+            await _ws_send_safe(websocket, "tool_call_error", {
+                "name": name,
+                "error": result.get("message", str(result)) if isinstance(result, dict) else str(result),
+            })
+
     session = ChatSession(
         client=client,
         model_name=MODEL_CFG["model_name"],
         max_rounds=CHAT_CFG["max_history_rounds"],
+        tool_registry=tool_registry,
+        on_tool_call=on_tool_call,
+        on_tool_result=on_tool_result,
     )
     tts_task: asyncio.Task | None = None
-    tts_enabled = True  # per-connection TTS toggle
-    pending_skill = None  # {skill, resolved, ambiguous, original_text} or None
+    tts_enabled = True
 
     try:
         while True:
@@ -344,80 +279,33 @@ async def websocket_chat(websocket: WebSocket):
                     tts_task.cancel()
                     tts_task = None
 
-                # Check for pending skill confirmation
-                if pending_skill is not None:
-                    # User is responding to a tag confirmation
-                    confirmed_tags = _parse_confirmation(user_text, pending_skill["ambiguous"])
-                    if confirmed_tags is not None:
-                        all_tags = pending_skill["resolved"] + confirmed_tags
-                        augmented_text = _build_skill_prompt(
-                            pending_skill["skill"], all_tags, pending_skill["original_text"]
-                        )
-                        active_skill = pending_skill["skill"]
-                        pending_skill = None
-                    else:
-                        # User didn't confirm clearly — ask again
-                        await websocket.send_json({
-                            "type": "message_complete",
-                            "payload": _tag_confirm_msg(pending_skill["ambiguous"]),
-                        })
-                        continue
-
-                # Skill routing: detect /command, extract tags, inject context
+                # --- Skill routing: match /command, load system prompt, filter tools ---
                 active_skill = None
                 augmented_text = user_text
+                active_tool_schemas = tool_registry.get_schemas()  # default: all tools
+
                 for command, skill in SKILLS.items():
                     if user_text.startswith(command):
                         active_skill = skill
                         logger.info("Skill activated: %s", skill["name"])
-
-                        # Extract #tag mentions from user input
-                        raw_tags = _extract_tags(user_text)
-                        no_ask = any(phrase in user_text for phrase in ("不询问", "不问我", "不要问", "不确认"))
-                        logger.info("Extracted tags: %s, no_ask=%s", raw_tags, no_ask)
-
-                        all_db_tags = notes_db.get_all_tags()
-                        resolved_tags, ambiguous = _resolve_tags(raw_tags, all_db_tags)
-                        logger.info("Resolved: %s, Ambiguous: %s", resolved_tags, ambiguous)
-
-                        if ambiguous and not no_ask:
-                            # Ask user to confirm before proceeding
-                            pending_skill = {
-                                "skill": skill,
-                                "resolved": resolved_tags,
-                                "ambiguous": ambiguous,
-                                "original_text": user_text,
-                            }
-                            await websocket.send_json({
-                                "type": "message_complete",
-                                "payload": _tag_confirm_msg(ambiguous),
-                            })
-                            break
-
-                        if ambiguous and no_ask:
-                            # Auto-pick first match for each ambiguous tag
-                            for raw, options in ambiguous.items():
-                                resolved_tags.append(options[0])
-                                logger.info("Auto-picked '%s' for '%s'", options[0], raw)
-
-                        augmented_text = _build_skill_prompt(skill, resolved_tags, user_text)
+                        augmented_text = _build_skill_prompt(skill, user_text)
+                        active_tool_schemas = tool_registry.get_for_skill(skill)
                         break
 
-                if active_skill is None and augmented_text == user_text:
-                    # No skill matched — use original text
-                    pass
-
+                # --- Send to model ---
                 session.add_user_message(augmented_text)
                 session.clear_stop()
 
                 collected_chunks: list[str] = []
                 try:
-                    async for token in session.stream_chat():
-                        collected_chunks.append(token)
-                        await websocket.send_json({
-                            "type": "message_chunk",
-                            "payload": {"content": token},
-                        })
+                    async for event_type, data in session.stream_with_tool_loop(active_tool_schemas):
+                        if event_type == "content":
+                            collected_chunks.append(data)
+                            await websocket.send_json({
+                                "type": "message_chunk",
+                                "payload": {"content": data},
+                            })
+                        # tool_call events are already pushed via on_tool_call/on_tool_result callbacks
                 except Exception as exc:
                     logger.error("Stream error: %s", exc)
                     await websocket.send_json({
@@ -432,13 +320,13 @@ async def websocket_chat(websocket: WebSocket):
                         "payload": {"full_content": full, "partial": partial},
                     })
 
-                    # Auto TTS: synthesize reply as speech (if enabled)
+                    # Auto TTS
                     if full.strip() and tts_enabled:
                         if tts_task and not tts_task.done():
                             tts_task.cancel()
                         tts_task = asyncio.create_task(_synthesize_and_send(websocket, full))
 
-                    # If a skill was used, send markdown preview
+                    # Skill markdown preview
                     if active_skill:
                         await websocket.send_json({
                             "type": "markdown_preview",
@@ -466,7 +354,6 @@ async def websocket_chat(websocket: WebSocket):
                     continue
 
                 try:
-                    # Decode base64 to WAV
                     audio_bytes = base64.b64decode(audio_b64)
                     temp_dir = Path(__file__).parent / "temp"
                     temp_dir.mkdir(parents=True, exist_ok=True)
@@ -479,7 +366,6 @@ async def websocket_chat(websocket: WebSocket):
                         "payload": {"action": "thinking"},
                     })
 
-                    # Transcribe
                     text = await asyncio.to_thread(stt.transcribe, str(wav_path))
                     logger.info("Voice transcribed: %s", text[:100])
 
@@ -492,7 +378,6 @@ async def websocket_chat(websocket: WebSocket):
                         "payload": {"action": "idle"},
                     })
 
-                    # Clean up temp file
                     wav_path.unlink(missing_ok=True)
 
                 except Exception as exc:
@@ -562,7 +447,6 @@ async def websocket_chat(websocket: WebSocket):
                     "payload": {"file_path": str(file_path)},
                 })
 
-            # --- Notes handlers ---
             elif msg_type == "add_note":
                 try:
                     note = notes_db.add_note(
