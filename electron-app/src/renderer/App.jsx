@@ -8,6 +8,7 @@ import AvatarStatus from './components/AvatarStatus';
 import MarkdownPreview from './components/MarkdownPreview';
 import SettingsPanel from './components/SettingsPanel';
 import Live2DAvatar from './components/Live2DAvatar';
+import FeatureGuard from './components/FeatureGuard';
 
 let nextId = 1;
 
@@ -24,10 +25,12 @@ export default function App() {
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [markdownPreview, setMarkdownPreview] = useState(null);
   const [config, setConfig] = useState(null);
+  const [toolToast, setToolToast] = useState(null);  // { name, text }
   const audioRef = useRef(null);
   const sendRef = useRef(null);
   const ttsEnabledRef = useRef(ttsEnabled);
   ttsEnabledRef.current = ttsEnabled;
+  const toolToastTimerRef = useRef(null);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -156,6 +159,92 @@ export default function App() {
 
       case 'error': {
         console.error('Server error:', payload.message);
+        break;
+      }
+
+      case 'tool_call_start': {
+        const toolName = payload.name || 'unknown';
+        // Show floating toast
+        setToolToast({ name: toolName, text: `正在调用 ${toolName}...` });
+        if (toolToastTimerRef.current) clearTimeout(toolToastTimerRef.current);
+
+        // Append tool_call entry to the current streaming assistant message
+        setMessages((prev) => {
+          const updated = [...prev];
+          // Find the most recent assistant message
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant') {
+              const msg = updated[i];
+              const toolCalls = msg.toolCalls ? [...msg.toolCalls] : [];
+              toolCalls.push({
+                id: `${toolName}_${Date.now()}`,
+                name: toolName,
+                args: payload.args || {},
+                state: 'running',
+              });
+              updated[i] = { ...msg, toolCalls };
+              break;
+            }
+          }
+          return updated;
+        });
+        break;
+      }
+
+      case 'tool_call_result': {
+        const resultName = payload.name || 'unknown';
+        const durationMs = payload.duration_ms || 0;
+        setToolToast({ name: resultName, text: `${resultName} 完成 · ${(durationMs / 1000).toFixed(1)}s` });
+        toolToastTimerRef.current = setTimeout(() => setToolToast(null), 3000);
+
+        setMessages((prev) => {
+          const updated = [...prev];
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant' && updated[i].toolCalls) {
+              const msg = updated[i];
+              const toolCalls = msg.toolCalls.map((tc) => {
+                if (tc.name === resultName && tc.state === 'running') {
+                  return {
+                    ...tc,
+                    state: 'completed',
+                    result: payload.result || {},
+                    duration_ms: durationMs,
+                  };
+                }
+                return tc;
+              });
+              updated[i] = { ...msg, toolCalls };
+              break;
+            }
+          }
+          return updated;
+        });
+        break;
+      }
+
+      case 'tool_call_error': {
+        const errName = payload.name || 'unknown';
+        const errMsg = payload.error || 'Unknown error';
+        setToolToast({ name: errName, text: `${errName} 失败: ${errMsg}` });
+        toolToastTimerRef.current = setTimeout(() => setToolToast(null), 4000);
+
+        setMessages((prev) => {
+          const updated = [...prev];
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant' && updated[i].toolCalls) {
+              const msg = updated[i];
+              const toolCalls = msg.toolCalls.map((tc) => {
+                if (tc.name === errName && tc.state === 'running') {
+                  return { ...tc, state: 'error', error: errMsg };
+                }
+                return tc;
+              });
+              updated[i] = { ...msg, toolCalls };
+              break;
+            }
+          }
+          return updated;
+        });
         break;
       }
 
@@ -293,6 +382,12 @@ export default function App() {
             <button className="btn-stop-speaking" onClick={stopAudio}>⏹ 停止朗读</button>
           </div>
         )}
+        {toolToast && (
+          <div className="tool-toast">
+            <span>🔧</span>
+            <span>{toolToast.text}</span>
+          </div>
+        )}
         {activeTab === 'chat' ? (
           <ChatPanel
             messages={messages}
@@ -349,9 +444,11 @@ export default function App() {
         />
       )}
       </div>
-      <div className="live2d-sidebar">
-        <Live2DAvatar state={avatarState} />
-      </div>
+      <FeatureGuard flag="showLive2D">
+        <div className="live2d-sidebar">
+          <Live2DAvatar state={avatarState} />
+        </div>
+      </FeatureGuard>
     </div>
   );
 }
