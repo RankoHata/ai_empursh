@@ -55,6 +55,28 @@ CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
     INSERT INTO notes_fts(notes_fts, rowid, content) VALUES('delete', old.id, old.content);
     INSERT INTO notes_fts(rowid, content) VALUES (new.id, new.content);
 END;
+
+-- Conversation storage (for history + debug)
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS conversation_turns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    turn_index INTEGER NOT NULL,
+    user_message TEXT NOT NULL,
+    assistant_content TEXT NOT NULL DEFAULT '',
+    trace_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_turns_conv ON conversation_turns(conversation_id, turn_index);
 """
 
 

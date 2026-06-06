@@ -58,6 +58,7 @@ class ChatSession:
         self._on_tool_call = on_tool_call
         self._on_tool_result = on_tool_result
         self._max_tool_rounds = max_tool_rounds
+        self._trace: list[dict[str, Any]] = []  # current turn trace
 
         logger.debug(
             "ChatSession created: model=%s max_rounds=%d max_messages=%d "
@@ -324,10 +325,10 @@ class ChatSession:
     ) -> AsyncGenerator[Tuple[str, Any], None]:
         """High-level: stream chat, execute tools, loop until text-only response.
 
-        Wraps ``stream_chat_with_tools()`` and handles the entire
-        tool-calling lifecycle internally. The caller only needs to yield
-        events to the frontend.
+        Records a structured trace for debugging and persistence.
         """
+        self._trace = []  # fresh trace for this turn
+
         if self._tool_registry is None:
             logger.debug("Tool loop: no registry, falling back to stream_chat")
             async for token in self.stream_chat():
@@ -340,10 +341,17 @@ class ChatSession:
 
         while tool_round < self._max_tool_rounds:
             if self._stop_event.is_set():
+                self._trace.append({"step": "stopped", "round": tool_round})
                 logger.debug("Tool loop: stopped at round %d", tool_round)
                 break
 
             had_tool_call = False
+            self._trace.append({
+                "step": "api_call",
+                "round": tool_round,
+                "tools": [t["function"]["name"] for t in tool_schemas],
+                "history_msgs": len(self._history),
+            })
             logger.debug("Tool loop round %d: calling stream_chat_with_tools", tool_round)
 
             async for event_type, data in self.stream_chat_with_tools(tool_schemas):
@@ -364,11 +372,13 @@ class ChatSession:
                         )
                         tool_args = {}
 
-                    logger.debug(
-                        "Tool call '%s' id=%s args=%s",
-                        tool_name, tool_call_id[:8],
-                        json.dumps(tool_args, ensure_ascii=False)[:200],
-                    )
+                    self._trace.append({
+                        "step": "tool_call",
+                        "round": tool_round,
+                        "name": tool_name,
+                        "id": tool_call_id,
+                        "args": tool_args,
+                    })
 
                     # Notify callback
                     if self._on_tool_call:
@@ -381,12 +391,16 @@ class ChatSession:
                     result_json = await self._tool_registry.execute(tool_name, tool_args)
                     result_dict = json.loads(result_json)
 
-                    logger.debug(
-                        "Tool result '%s': success=%s %s",
-                        tool_name,
-                        result_dict.get("success"),
-                        result_dict.get("message", ""),
-                    )
+                    self._trace.append({
+                        "step": "tool_result",
+                        "round": tool_round,
+                        "name": tool_name,
+                        "id": tool_call_id,
+                        "success": result_dict.get("success"),
+                        "message": result_dict.get("message", ""),
+                        "duration_ms": result_dict.pop("_duration_ms", 0),
+                        "count": result_dict.get("count", 0),
+                    })
 
                     # Notify callback
                     if self._on_tool_result:
@@ -396,11 +410,6 @@ class ChatSession:
                             logger.error("on_tool_result error: %s", exc)
 
                     # Feed result back to history
-                    logger.debug(
-                        "History ← tool(%s): %s",
-                        tool_call_id[:8],
-                        result_json[:120],
-                    )
                     self._history.append({
                         "role": "tool",
                         "tool_call_id": tool_call_id,
@@ -408,6 +417,7 @@ class ChatSession:
                     })
 
             if not had_tool_call:
+                self._trace.append({"step": "done", "round": tool_round})
                 logger.debug("Tool loop: no tool calls in round %d, done", tool_round)
                 break
 
@@ -415,14 +425,28 @@ class ChatSession:
             logger.debug("Tool loop: advancing to round %d", tool_round)
 
         if tool_round >= self._max_tool_rounds:
+            self._trace.append({"step": "max_rounds_reached", "round": tool_round})
             logger.warning("Tool loop reached max rounds (%d), forcing reply", self._max_tool_rounds)
             self.add_system_message("已达到最大工具调用次数。请基于已有信息直接回复用户，不要再调用工具。")
             async for token in self.stream_chat():
                 yield ("content", token)
 
     # ------------------------------------------------------------------
-    # Tool result injection (for manual loop control)
+    # Trace & history export/import (for persistence + debugging)
     # ------------------------------------------------------------------
+
+    def get_trace(self) -> list[dict[str, Any]]:
+        """Return the structured trace for the most recent turn."""
+        return self._trace
+
+    def export_history(self) -> list[dict[str, Any]]:
+        """Return a JSON-serializable copy of the conversation history."""
+        return list(self._history)
+
+    def load_history(self, messages: list[dict[str, Any]]) -> None:
+        """Restore conversation history from a saved messages array."""
+        self._history = list(messages)
+        logger.debug("History loaded: %d messages", len(self._history))
 
     def add_tool_result(self, tool_call_id: str, result_json: str) -> None:
         """Manually add a tool result message to history."""

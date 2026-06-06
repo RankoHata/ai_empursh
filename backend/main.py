@@ -27,6 +27,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from openai import AsyncOpenAI
 
 from agent.chat import ChatSession
+from db import conversations as conv_db
 from db import notes as notes_db
 from voice import stt
 from voice import tts as voice_tts
@@ -255,6 +256,8 @@ async def websocket_chat(websocket: WebSocket):
     )
     tts_task: asyncio.Task | None = None
     tts_enabled = True
+    current_conv_id: Optional[str] = None
+    turn_index = 0
 
     try:
         while True:
@@ -347,6 +350,31 @@ async def websocket_chat(websocket: WebSocket):
                         if tts_task and not tts_task.done():
                             tts_task.cancel()
                         tts_task = asyncio.create_task(_synthesize_and_send(websocket, full))
+
+                    # Auto-save conversation turn
+                    if not partial:
+                        if current_conv_id is None:
+                            # Auto-create conversation on first message
+                            conv = conv_db.create_conversation(
+                                title=user_text[:40] + ("..." if len(user_text) > 40 else "")
+                            )
+                            current_conv_id = conv["id"]
+                            turn_index = 0
+                            logger.info("Auto-created conversation %s", current_conv_id)
+
+                        trace = session.get_trace()
+                        conv_db.add_turn(
+                            conv_id=current_conv_id,
+                            turn_index=turn_index,
+                            user_message=user_text,
+                            assistant_content=full,
+                            trace=trace,
+                        )
+                        turn_index += 1
+                        logger.debug(
+                            "Saved turn %d in conv %s (%d trace steps)",
+                            turn_index - 1, current_conv_id, len(trace),
+                        )
 
                     # Skill markdown preview
                     if active_skill:
@@ -529,6 +557,56 @@ async def websocket_chat(websocket: WebSocket):
                         "type": "error",
                         "payload": {"message": "No note_ids provided"},
                     })
+
+            # --- Conversation handlers ---
+            elif msg_type == "create_conversation":
+                conv = conv_db.create_conversation(title=payload.get("title", "新对话"))
+                await websocket.send_json({
+                    "type": "conversation_created",
+                    "payload": conv,
+                })
+
+            elif msg_type == "list_conversations":
+                convs = conv_db.list_conversations()
+                await websocket.send_json({
+                    "type": "conversations_list",
+                    "payload": {"conversations": convs},
+                })
+
+            elif msg_type == "delete_conversation":
+                conv_id = payload.get("conversation_id", "")
+                if conv_id:
+                    deleted = conv_db.delete_conversation(conv_id)
+                    await websocket.send_json({
+                        "type": "conversation_deleted",
+                        "payload": {"conversation_id": conv_id, "deleted": deleted},
+                    })
+
+            elif msg_type == "load_conversation":
+                conv_id = payload.get("conversation_id", "")
+                if conv_id:
+                    conv = conv_db.get_conversation(conv_id)
+                    if conv:
+                        messages = conv_db.build_history_from_turns(conv_id)
+                        session.load_history(messages)
+                        current_conv_id = conv_id
+                        turn_index = conv_db.get_turn_count(conv_id)
+                        logger.info(
+                            "Loaded conversation %s: %d turns, %d messages",
+                            conv_id, turn_index, len(messages),
+                        )
+                        await websocket.send_json({
+                            "type": "conversation_loaded",
+                            "payload": {
+                                "conversation": conv,
+                                "turn_count": turn_index,
+                            },
+                        })
+                    else:
+                        await websocket.send_json({
+                            "type": "error",
+                            "payload": {"message": f"Conversation not found: {conv_id}"},
+                        })
 
             else:
                 await websocket.send_json({
