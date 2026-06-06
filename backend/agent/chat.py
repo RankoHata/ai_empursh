@@ -127,7 +127,7 @@ class ChatSession:
         """
         accumulated_content: list[str] = []
         accumulated_tool_calls: dict[int, dict[str, Any]] = {}
-        finish_reason: Optional[str] = None
+        tool_calls_yielded: bool = False
 
         try:
             stream = await self._client.chat.completions.create(
@@ -152,16 +152,13 @@ class ChatSession:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 finish_reason = chunk.choices[0].finish_reason if chunk.choices else None
 
-                if delta is None:
-                    continue
-
                 # --- content tokens ---
-                if delta.content:
+                if delta and delta.content:
                     accumulated_content.append(delta.content)
                     yield ("content", delta.content)
 
                 # --- tool_call tokens (may arrive interleaved with content) ---
-                if delta.tool_calls:
+                if delta and delta.tool_calls:
                     for tc_delta in delta.tool_calls:
                         idx = tc_delta.index
                         if idx not in accumulated_tool_calls:
@@ -181,9 +178,11 @@ class ChatSession:
                             if tc_delta.function.arguments:
                                 entry["function"]["arguments"] += tc_delta.function.arguments
 
-                # --- stream finished with tool_calls ---
-                if finish_reason == "tool_calls" and accumulated_tool_calls:
-                    for tc in sorted(accumulated_tool_calls.values(), key=lambda x: x["id"]):
+                # --- stream finished with tool_calls (guarded against double-yield) ---
+                if finish_reason == "tool_calls" and accumulated_tool_calls and not tool_calls_yielded:
+                    tool_calls_yielded = True
+                    for idx in sorted(accumulated_tool_calls):
+                        tc = accumulated_tool_calls[idx]
                         func = tc["function"]
                         yield ("tool_call", {
                             "id": tc["id"],
@@ -198,7 +197,8 @@ class ChatSession:
         full_text = "".join(accumulated_content)
         if accumulated_tool_calls:
             tool_call_blocks = []
-            for tc in sorted(accumulated_tool_calls.values(), key=lambda x: x["id"]):
+            for idx in sorted(accumulated_tool_calls):
+                tc = accumulated_tool_calls[idx]
                 tool_call_blocks.append({
                     "id": tc["id"],
                     "type": "function",
