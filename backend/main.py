@@ -356,9 +356,7 @@ async def websocket_chat(websocket: WebSocket):
                     if not partial:
                         if current_conv_id is None:
                             # Auto-create conversation on first message
-                            conv = conv_db.create_conversation(
-                                title=user_text[:40] + ("..." if len(user_text) > 40 else "")
-                            )
+                            conv = conv_db.create_conversation(title=user_text)
                             current_conv_id = conv["id"]
                             turn_index = 0
                             logger.info("Auto-created conversation %s", current_conv_id)
