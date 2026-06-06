@@ -38,7 +38,7 @@ function encodeWAV(samples, sampleRate) {
   return buffer;
 }
 
-export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSaveNote, onVoiceInput }) {
+export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSaveNote, onVoiceInput, onToggleDebug, debugMsgId }) {
   const [input, setInput] = useState('');
   const [ctxMenu, setCtxMenu] = useState(null);
   const [recording, setRecording] = useState(false);
@@ -183,7 +183,11 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSav
           </div>
         )}
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
+          <MessageBubble
+            key={msg.id}
+            message={{ ...msg, debugVisible: debugMsgId === msg.id }}
+            onToggleDebug={onToggleDebug}
+          />
         ))}
         <div ref={bottomRef} />
       </div>

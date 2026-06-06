@@ -336,13 +336,14 @@ async def websocket_chat(websocket: WebSocket):
                 else:
                     full = "".join(collected_chunks)
                     partial = session.stopped()
+                    trace = session.get_trace()
                     logger.debug(
-                        "Chat complete: content_chars=%d partial=%s",
-                        len(full), partial,
+                        "Chat complete: content_chars=%d partial=%s trace_steps=%d",
+                        len(full), partial, len(trace),
                     )
                     await websocket.send_json({
                         "type": "message_complete",
-                        "payload": {"full_content": full, "partial": partial},
+                        "payload": {"full_content": full, "partial": partial, "trace": trace},
                     })
 
                     # Auto TTS
@@ -580,6 +581,15 @@ async def websocket_chat(websocket: WebSocket):
                     await websocket.send_json({
                         "type": "conversation_deleted",
                         "payload": {"conversation_id": conv_id, "deleted": deleted},
+                    })
+
+            elif msg_type == "get_turns":
+                conv_id = payload.get("conversation_id", current_conv_id or "")
+                if conv_id:
+                    turns = conv_db.get_turns(conv_id)
+                    await websocket.send_json({
+                        "type": "turns_list",
+                        "payload": {"turns": turns, "conversation_id": conv_id},
                     })
 
             elif msg_type == "load_conversation":

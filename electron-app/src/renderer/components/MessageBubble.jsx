@@ -2,9 +2,10 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ToolCallCard from './ToolCallCard';
+import TracePanel from './TracePanel';
 
-export default function MessageBubble({ message }) {
-  const { id, role, content, isStreaming, timestamp, toolCalls } = message;
+export default function MessageBubble({ message, onToggleDebug }) {
+  const { id, role, content, isStreaming, timestamp, toolCalls, trace, debugVisible } = message;
   const label = role === 'user' ? '你' : '助理';
 
   const bubbleClass = [
@@ -46,6 +47,16 @@ export default function MessageBubble({ message }) {
           )}
         </div>
       )}
+
+      {/* Debug toggle button */}
+      {role === 'assistant' && !isStreaming && trace && trace.length > 0 && (
+        <button className="trace-toggle-btn" onClick={() => onToggleDebug && onToggleDebug(id)}>
+          🔍 调用追踪 ({trace.length} 步)
+        </button>
+      )}
+
+      {/* Trace panel */}
+      <TracePanel trace={trace} visible={debugVisible} onClose={() => onToggleDebug && onToggleDebug(id)} />
 
       {timeStr && <span className="bubble-timestamp">{timeStr}</span>}
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import useWebSocket from './hooks/useWebSocket';
 import StatusBar from './components/StatusBar';
 import TabBar from './components/TabBar';
@@ -9,8 +9,35 @@ import MarkdownPreview from './components/MarkdownPreview';
 import SettingsPanel from './components/SettingsPanel';
 import Live2DAvatar from './components/Live2DAvatar';
 import FeatureGuard from './components/FeatureGuard';
+import ConversationList from './components/ConversationList';
 
 let nextId = 1;
+
+function buildToolCallsFromTrace(trace) {
+  if (!trace) return undefined;
+  const toolCalls = [];
+  trace.forEach(step => {
+    if (step.step === 'tool_call') {
+      toolCalls.push({
+        id: step.id || `${step.name}_${Date.now()}`,
+        name: step.name,
+        args: step.args,
+        state: 'completed',
+      });
+    }
+    // Find matching tool_result
+    if (step.step === 'tool_result') {
+      const matching = toolCalls.find(tc => tc.name === step.name && tc.state === 'completed' && !tc.result);
+      if (matching) {
+        matching.result = { success: step.success, message: step.message, count: step.count };
+        matching.duration_ms = step.duration_ms;
+        matching.state = step.success ? 'completed' : 'error';
+        if (!step.success) matching.error = step.message;
+      }
+    }
+  });
+  return toolCalls.length > 0 ? toolCalls : undefined;
+}
 
 export default function App() {
   const [messages, setMessages] = useState([]);
@@ -26,6 +53,9 @@ export default function App() {
   const [markdownPreview, setMarkdownPreview] = useState(null);
   const [config, setConfig] = useState(null);
   const [toolToast, setToolToast] = useState(null);  // { name, text }
+  const [conversations, setConversations] = useState([]);
+  const [activeConvId, setActiveConvId] = useState(null);
+  const [debugMsgId, setDebugMsgId] = useState(null);
   const audioRef = useRef(null);
   const sendRef = useRef(null);
   const ttsEnabledRef = useRef(ttsEnabled);
@@ -80,7 +110,11 @@ export default function App() {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           if (last && last.isStreaming) {
-            updated[updated.length - 1] = { ...last, isStreaming: false };
+            updated[updated.length - 1] = {
+              ...last,
+              isStreaming: false,
+              trace: payload.trace,
+            };
           }
           return updated;
         });
@@ -248,6 +282,54 @@ export default function App() {
         break;
       }
 
+      case 'conversation_created': {
+        const conv = payload;
+        setActiveConvId(conv.id);
+        setConversations(prev => [conv, ...prev]);
+        break;
+      }
+
+      case 'conversations_list': {
+        setConversations(payload.conversations || []);
+        break;
+      }
+
+      case 'conversation_deleted': {
+        const deletedId = payload.conversation_id;
+        setConversations(prev => prev.filter(c => c.id !== deletedId));
+        if (activeConvId === deletedId) {
+          setActiveConvId(null);
+          setMessages([]);
+        }
+        break;
+      }
+
+      case 'conversation_loaded': {
+        send('get_turns', { conversation_id: payload.conversation.id });
+        break;
+      }
+
+      case 'turns_list': {
+        const turns = payload.turns || [];
+        const msgs = [];
+        let msgId = 1;
+        turns.forEach(turn => {
+          msgs.push({
+            id: msgId++, role: 'user', content: turn.user_message,
+            isStreaming: false, timestamp: turn.created_at,
+          });
+          const tc = buildToolCallsFromTrace(turn.trace);
+          msgs.push({
+            id: msgId++, role: 'assistant', content: turn.assistant_content,
+            isStreaming: false, timestamp: turn.created_at,
+            trace: turn.trace,
+            toolCalls: tc,
+          });
+        });
+        setMessages(msgs);
+        break;
+      }
+
       default:
         break;
     }
@@ -320,6 +402,36 @@ export default function App() {
     send('update_config', { updates });
   }, [send]);
 
+  const handleNewConv = useCallback(() => {
+    send('create_conversation', { title: '' });
+  }, [send]);
+
+  const handleSelectConv = useCallback((convId) => {
+    setActiveConvId(convId);
+    setMessages([]);
+    setDebugMsgId(null);
+    send('load_conversation', { conversation_id: convId });
+  }, [send]);
+
+  const handleDeleteConv = useCallback((convId) => {
+    if (confirm('确定删除此对话？')) {
+      send('delete_conversation', { conversation_id: convId });
+    }
+  }, [send]);
+
+  const handleToggleDebug = useCallback((msgId) => {
+    setDebugMsgId(prev => prev === msgId ? null : msgId);
+  }, []);
+
+  // Request conversation list when connection is established
+  const prevStatusRef = useRef(connectionStatus);
+  useEffect(() => {
+    if (connectionStatus === 'connected' && prevStatusRef.current !== 'connected') {
+      send('list_conversations', {});
+    }
+    prevStatusRef.current = connectionStatus;
+  }, [connectionStatus, send]);
+
   // Live2D-only desktop pet mode — JS drag + click to toggle
   const isLive2DOnly = window.location.search.includes('mode=live2d');
   const petDragRef = useRef({ startX: 0, startY: 0, moved: false });
@@ -367,6 +479,13 @@ export default function App() {
 
   return (
     <div className="app-container">
+      <ConversationList
+        conversations={conversations}
+        activeId={activeConvId}
+        onNew={handleNewConv}
+        onSelect={handleSelectConv}
+        onDelete={handleDeleteConv}
+      />
       <div className="main-content">
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
         <StatusBar
@@ -396,6 +515,8 @@ export default function App() {
             onStop={handleStop}
             onSaveNote={handleSaveNote}
             onVoiceInput={handleVoiceInput}
+            onToggleDebug={handleToggleDebug}
+            debugMsgId={debugMsgId}
           />
         ) : activeTab === 'notes' ? (
           <NotesPanel
