@@ -35,6 +35,8 @@ class ToolRegistry:
 
     def register(self, tool: ToolDefinition) -> None:
         """Register a tool definition."""
+        if tool.name in self._tools:
+            logger.warning("Overwriting existing tool: %s", tool.name)
         self._tools[tool.name] = tool
         logger.info("Registered tool: %s", tool.name)
 
@@ -67,6 +69,7 @@ class ToolRegistry:
         for name in names:
             tool = self._tools.get(name)
             if tool is None:
+                logger.warning("Tool '%s' not found in registry, skipping", name)
                 continue
             schemas.append(
                 {
