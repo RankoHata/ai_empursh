@@ -833,3 +833,151 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+/* === ToolCallCard === */
+.tool-call-card {
+  margin: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.tool-call-card.tool-running {
+  border-color: #4fc3f7;
+  border-left: 3px solid #4fc3f7;
+}
+
+.tool-call-card.tool-completed {
+  border-color: var(--success);
+  border-left: 3px solid var(--success);
+}
+
+.tool-call-card.tool-error {
+  border-color: var(--accent);
+  border-left: 3px solid var(--accent);
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s;
+}
+.tool-call-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tool-call-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.tool-call-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.tool-call-status {
+  font-size: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.tool-running .tool-call-status {
+  color: #4fc3f7;
+}
+.tool-completed .tool-call-status {
+  color: var(--success);
+}
+.tool-error .tool-call-status {
+  color: var(--accent);
+}
+
+.tool-call-expand {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.tool-call-body {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tool-call-section {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tool-call-label {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 32px;
+}
+
+.tool-call-code {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  background: var(--bg-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  word-break: break-all;
+  flex: 1;
+}
+
+.tool-call-summary {
+  color: var(--text-primary);
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.tool-call-error-detail .tool-call-summary {
+  color: var(--accent);
+}
+
+/* Tool running pulse animation */
+.tool-running .tool-call-header {
+  animation: tool-pulse 1.5s ease-in-out infinite;
+}
+@keyframes tool-pulse {
+  0%, 100% { background: rgba(79, 195, 247, 0.02); }
+  50% { background: rgba(79, 195, 247, 0.06); }
+}
+
+/* === Tool Status Toast (floating indicator) === */
+.tool-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  background: var(--bg-secondary);
+  border: 1px solid #4fc3f7;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: #4fc3f7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: toast-in 0.2s ease-out;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
