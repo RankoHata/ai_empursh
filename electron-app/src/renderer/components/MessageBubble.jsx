@@ -4,7 +4,16 @@ import remarkGfm from 'remark-gfm';
 import ToolCallCard from './ToolCallCard';
 import TracePanel from './TracePanel';
 
-export default function MessageBubble({ message, onToggleDebug }) {
+/** Collapse 3+ consecutive blank lines into 2, and trim leading/trailing newlines. */
+function compactMarkdown(text) {
+  if (!text) return text;
+  return text
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\n+/, '')
+    .replace(/\n+$/, '');
+}
+
+export default function MessageBubble({ message, onToggleDebug, compactMode }) {
   const { id, role, content, isStreaming, timestamp, toolCalls, trace, debugVisible } = message;
   const label = role === 'user' ? '你' : '助理';
 
@@ -16,11 +25,16 @@ export default function MessageBubble({ message, onToggleDebug }) {
   const contentClass = [
     'bubble-content',
     isStreaming ? 'streaming' : '',
+    compactMode ? 'compact-md' : '',
   ].filter(Boolean).join(' ');
 
   const timeStr = timestamp
     ? new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     : '';
+
+  const displayContent = role === 'assistant' && compactMode
+    ? compactMarkdown(content)
+    : content;
 
   return (
     <div className={bubbleClass} data-msg-id={id}>
@@ -40,7 +54,7 @@ export default function MessageBubble({ message, onToggleDebug }) {
         <div className={contentClass}>
           {role === 'assistant' ? (
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {content}
+              {displayContent}
             </ReactMarkdown>
           ) : (
             content

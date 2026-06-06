@@ -336,6 +336,17 @@ html, body, #root {
   accent-color: var(--accent);
 }
 
+/* === Compact Markdown Mode === */
+.compact-md p { margin: 2px 0; }
+.compact-md p:empty { display: none; }
+.compact-md br + br { display: none; }
+.compact-md h1, .compact-md h2, .compact-md h3, .compact-md h4 { margin: 8px 0 4px; }
+.compact-md ul, .compact-md ol { margin: 4px 0; }
+.compact-md li { margin: 0; }
+.compact-md pre { margin: 6px 0; }
+.compact-md blockquote { margin: 6px 0; }
+.compact-md hr { margin: 8px 0; }
+
 /* === TabBar === */
 .tab-bar {
   display: flex;
@@ -1056,6 +1067,18 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
 }
 .conv-item:hover .conv-delete-btn { opacity: 0.6; }
 .conv-delete-btn:hover { opacity: 1 !important; }
+
+.conv-edit-input {
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+}
 
 .conv-empty {
   padding: 20px;

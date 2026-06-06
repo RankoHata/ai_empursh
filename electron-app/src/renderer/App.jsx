@@ -56,6 +56,9 @@ export default function App() {
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
   const [debugMsgId, setDebugMsgId] = useState(null);
+  const [compactMode, setCompactMode] = useState(() => {
+    return localStorage.getItem('compactMode') === '1';
+  });
   const audioRef = useRef(null);
   const sendRef = useRef(null);
   const ttsEnabledRef = useRef(ttsEnabled);
@@ -304,6 +307,14 @@ export default function App() {
         break;
       }
 
+      case 'conversation_renamed': {
+        const { conversation_id, title } = payload;
+        setConversations(prev => prev.map(c =>
+          c.id === conversation_id ? { ...c, title } : c
+        ));
+        break;
+      }
+
       case 'conversation_loaded': {
         send('get_turns', { conversation_id: payload.conversation.id });
         break;
@@ -419,6 +430,10 @@ export default function App() {
     }
   }, [send]);
 
+  const handleRenameConv = useCallback((convId, title) => {
+    send('rename_conversation', { conversation_id: convId, title });
+  }, [send]);
+
   const handleToggleDebug = useCallback((msgId) => {
     setDebugMsgId(prev => prev === msgId ? null : msgId);
   }, []);
@@ -485,6 +500,7 @@ export default function App() {
         onNew={handleNewConv}
         onSelect={handleSelectConv}
         onDelete={handleDeleteConv}
+        onRename={handleRenameConv}
       />
       <div className="main-content">
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -517,6 +533,7 @@ export default function App() {
             onVoiceInput={handleVoiceInput}
             onToggleDebug={handleToggleDebug}
             debugMsgId={debugMsgId}
+            compactMode={compactMode}
           />
         ) : activeTab === 'notes' ? (
           <NotesPanel
@@ -529,9 +546,11 @@ export default function App() {
         ) : (
           <SettingsPanel
             config={config}
-          onUpdateConfig={handleUpdateConfig}
-          onLoad={handleGetConfig}
-        />
+            onUpdateConfig={handleUpdateConfig}
+            onLoad={handleGetConfig}
+            compactMode={compactMode}
+            onToggleCompact={(v) => { setCompactMode(v); localStorage.setItem('compactMode', v ? '1' : '0'); }}
+          />
       )}
 
       {saveModal && (

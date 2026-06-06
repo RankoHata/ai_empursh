@@ -581,6 +581,16 @@ async def websocket_chat(websocket: WebSocket):
                         "payload": {"conversation_id": conv_id, "deleted": deleted},
                     })
 
+            elif msg_type == "rename_conversation":
+                conv_id = payload.get("conversation_id", "")
+                title = payload.get("title", "").strip()
+                if conv_id and title:
+                    ok = conv_db.update_conversation_title(conv_id, title)
+                    await websocket.send_json({
+                        "type": "conversation_renamed",
+                        "payload": {"conversation_id": conv_id, "title": title, "ok": ok},
+                    })
+
             elif msg_type == "get_turns":
                 conv_id = payload.get("conversation_id", current_conv_id or "")
                 if conv_id:

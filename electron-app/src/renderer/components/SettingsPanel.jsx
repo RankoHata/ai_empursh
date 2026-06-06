@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function SettingsPanel({ config, onUpdateConfig, onLoad }) {
+export default function SettingsPanel({ config, onUpdateConfig, onLoad, compactMode, onToggleCompact }) {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [modelName, setModelName] = useState('');
@@ -61,6 +61,15 @@ export default function SettingsPanel({ config, onUpdateConfig, onLoad }) {
           Max Tokens
           <input className="setting-input" type="number" value={maxTokens}
             onChange={(e) => setMaxTokens(e.target.value)} />
+        </label>
+      </div>
+
+      <div className="settings-section">
+        <h3>显示</h3>
+        <label className="setting-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input type="checkbox" checked={compactMode || false}
+            onChange={(e) => onToggleCompact && onToggleCompact(e.target.checked)} />
+          紧凑模式（减少空白行，信息密度更高）
         </label>
       </div>
 
