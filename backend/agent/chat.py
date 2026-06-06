@@ -30,7 +30,7 @@ class ChatSession:
     ):
         self._client = client
         self._model_name = model_name
-        self._max_messages = max_rounds * 2  # user + assistant per round
+        self._max_messages = max_rounds * 6  # user + assistant + tool_calls per round
         self._history: list[dict[str, Any]] = []
         self._stop_event = asyncio.Event()
         self._tool_registry = tool_registry
@@ -56,9 +56,13 @@ class ChatSession:
         self._trim()
 
     def _trim(self) -> None:
-        """Keep only the most recent N messages to stay within context window."""
-        if len(self._history) > self._max_messages:
-            self._history = self._history[-self._max_messages:]
+        """Keep only the most recent N messages; never orphan tool results."""
+        if len(self._history) <= self._max_messages:
+            return
+        self._history = self._history[-self._max_messages:]
+        # Drop leading orphaned tool messages (their tool_calls was trimmed off)
+        while self._history and self._history[0].get("role") == "tool":
+            self._history.pop(0)
 
     # ------------------------------------------------------------------
     # Stop signal
@@ -178,9 +182,33 @@ class ChatSession:
                             if tc_delta.function.arguments:
                                 entry["function"]["arguments"] += tc_delta.function.arguments
 
-                # --- stream finished with tool_calls (guarded against double-yield) ---
+                # --- stream finished with tool_calls ---
                 if finish_reason == "tool_calls" and accumulated_tool_calls and not tool_calls_yielded:
                     tool_calls_yielded = True
+
+                    # MUST write assistant(tool_calls) to history BEFORE yielding,
+                    # because the caller will immediately execute tools and append
+                    # role:"tool" results — which must come AFTER tool_calls.
+                    tool_call_blocks = []
+                    for idx in sorted(accumulated_tool_calls):
+                        tc = accumulated_tool_calls[idx]
+                        tool_call_blocks.append({
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["function"]["name"],
+                                "arguments": tc["function"]["arguments"],
+                            },
+                        })
+                    full_text = "".join(accumulated_content)
+                    assistant_msg: dict[str, Any] = {
+                        "role": "assistant",
+                        "tool_calls": tool_call_blocks,
+                    }
+                    if full_text:
+                        assistant_msg["content"] = full_text
+                    self._history.append(assistant_msg)
+
                     for idx in sorted(accumulated_tool_calls):
                         tc = accumulated_tool_calls[idx]
                         func = tc["function"]
@@ -193,27 +221,11 @@ class ChatSession:
         finally:
             await stream.close()
 
-        # Add to history
-        full_text = "".join(accumulated_content)
-        if accumulated_tool_calls:
-            tool_call_blocks = []
-            for idx in sorted(accumulated_tool_calls):
-                tc = accumulated_tool_calls[idx]
-                tool_call_blocks.append({
-                    "id": tc["id"],
-                    "type": "function",
-                    "function": {
-                        "name": tc["function"]["name"],
-                        "arguments": tc["function"]["arguments"],
-                    },
-                })
-            self._history.append({
-                "role": "assistant",
-                "content": full_text if full_text else None,
-                "tool_calls": tool_call_blocks,
-            })
-        elif full_text:
-            self.add_assistant_message(full_text)
+        # Add pure-text assistant message to history (tool_calls already handled above)
+        if not tool_calls_yielded:
+            full_text = "".join(accumulated_content)
+            if full_text:
+                self.add_assistant_message(full_text)
 
     # ------------------------------------------------------------------
     # Full tool loop (multi-turn)
