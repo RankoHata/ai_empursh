@@ -65,12 +65,12 @@ def get_all_notes() -> list[dict]:
 
 
 def search_notes(query: str | None = None, tags: list[str] | None = None) -> list[dict]:
-    """Full-text search via FTS5, with optional tag filter. Returns matching notes."""
+    """Full-text search via FTS5, with optional tag filter and LIKE fallback."""
     conn = get_connection()
     tags = tags or []
     try:
         if query and query.strip():
-            # FTS5 search
+            # FTS5 search (OR semantics for better recall)
             fts_query = _build_fts_query(query)
             rows = conn.execute(
                 "SELECT n.id, n.content, n.created_at, n.updated_at "
@@ -78,6 +78,15 @@ def search_notes(query: str | None = None, tags: list[str] | None = None) -> lis
                 "WHERE notes_fts MATCH ? ORDER BY rank",
                 (fts_query,),
             ).fetchall()
+
+            # Fallback: if FTS returns 0, try LIKE substring search
+            if not rows:
+                like_pattern = f"%{query.strip()}%"
+                rows = conn.execute(
+                    "SELECT id, content, created_at, updated_at FROM notes "
+                    "WHERE content LIKE ? ORDER BY created_at DESC",
+                    (like_pattern,),
+                ).fetchall()
         else:
             rows = conn.execute(
                 "SELECT id, content, created_at, updated_at FROM notes ORDER BY created_at DESC"
@@ -184,8 +193,14 @@ def _get_note_by_id(conn, note_id: int) -> dict:
 
 
 def _build_fts_query(query: str) -> str:
-    """Build an FTS5-safe query string from user input."""
-    # Escape special FTS5 characters and add prefix matching
+    """Build an FTS5-safe query string from user input.
+
+    Uses OR between terms so partial matches still return results
+    (e.g. "编程语言" matches notes containing "编程" OR "语言").
+    """
     terms = query.strip().split()
+    if not terms:
+        return ""
+    # Escape each term for FTS5 and add prefix matching
     escaped = [f'"{term}"*' for term in terms]
-    return " AND ".join(escaped)
+    return " OR ".join(escaped)
