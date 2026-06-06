@@ -125,7 +125,7 @@ def add_turn(
         )
         conn.commit()
         logger.debug(
-            "Saved turn %d.%d: %s → %d chars (%d trace steps)",
+            "Saved turn %s.%d: %s → %d chars (%d trace steps)",
             conv_id, turn_index, user_message[:40], len(assistant_content), len(trace or []),
         )
         return {"id": turn_id, "conversation_id": conv_id, "turn_index": turn_index}
