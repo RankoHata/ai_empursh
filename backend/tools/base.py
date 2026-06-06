@@ -1,7 +1,7 @@
 """ToolDefinition -- data class describing a callable tool for the model."""
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from dataclasses import dataclass
+from typing import Any, Callable
 
 
 @dataclass
