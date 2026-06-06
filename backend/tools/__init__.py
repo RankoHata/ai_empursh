@@ -106,6 +106,7 @@ class ToolRegistry:
         """
         tool = self._tools.get(name)
         if tool is None:
+            logger.warning("Tool execute: unknown tool '%s' requested", name)
             result = {
                 "success": False,
                 "data": None,
@@ -115,6 +116,10 @@ class ToolRegistry:
             }
             return json.dumps(result, ensure_ascii=False)
 
+        logger.debug(
+            "Tool execute: %s args=%s",
+            name, json.dumps(args, ensure_ascii=False)[:200],
+        )
         started = time.monotonic()
         try:
             coro = tool.executor(**args)
@@ -141,7 +146,15 @@ class ToolRegistry:
         elapsed_ms = int((time.monotonic() - started) * 1000)
         if isinstance(result, dict):
             result["_duration_ms"] = elapsed_ms
-        return json.dumps(result, ensure_ascii=False)
+        result_json = json.dumps(result, ensure_ascii=False)
+        logger.debug(
+            "Tool done: %s success=%s duration=%dms result=%s",
+            name,
+            result.get("success") if isinstance(result, dict) else "?",
+            elapsed_ms,
+            result_json[:200],
+        )
+        return result_json
 
     @property
     def tool_names(self) -> list[str]:

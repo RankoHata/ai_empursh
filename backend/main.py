@@ -44,7 +44,7 @@ tool_registry = create_default_registry()
 # Logging
 # ---------------------------------------------------------------------------
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("backend")
@@ -219,6 +219,8 @@ async def websocket_chat(websocket: WebSocket):
 
     # Per-connection tool callbacks (capture websocket in closure)
     async def on_tool_call(name: str, args: dict):
+        logger.debug("WS → tool_call_start: %s args=%s",
+                     name, json.dumps(args, ensure_ascii=False)[:120])
         await _ws_send_safe(websocket, "tool_call_start", {
             "name": name,
             "args": args,
@@ -228,12 +230,16 @@ async def websocket_chat(websocket: WebSocket):
         duration_ms = result.pop("_duration_ms", 0) if isinstance(result, dict) else 0
         success = result.get("success", True) if isinstance(result, dict) else True
         if success:
+            logger.debug("WS → tool_call_result: %s duration=%dms",
+                         name, duration_ms)
             await _ws_send_safe(websocket, "tool_call_result", {
                 "name": name,
                 "result": result,
                 "duration_ms": duration_ms,
             })
         else:
+            logger.debug("WS → tool_call_error: %s error=%s",
+                         name, result.get("message", ""))
             await _ws_send_safe(websocket, "tool_call_error", {
                 "name": name,
                 "error": result.get("message", str(result)) if isinstance(result, dict) else str(result),
@@ -287,10 +293,22 @@ async def websocket_chat(websocket: WebSocket):
                 for command, skill in SKILLS.items():
                     if user_text.startswith(command):
                         active_skill = skill
-                        logger.info("Skill activated: %s", skill["name"])
+                        logger.info("Skill activated: %s (command=%s)", skill["name"], command)
+                        logger.debug("Skill allowed_tools: %s", skill.get("allowed_tools", []))
                         augmented_text = _build_skill_prompt(skill, user_text)
                         active_tool_schemas = tool_registry.get_for_skill(skill)
+                        logger.debug(
+                            "Skill tool schemas: %s",
+                            [t["function"]["name"] for t in active_tool_schemas],
+                        )
                         break
+
+                logger.debug(
+                    "Chat request: text=%s active_skill=%s tools=%s",
+                    user_text[:80],
+                    active_skill["name"] if active_skill else "none",
+                    [t["function"]["name"] for t in active_tool_schemas],
+                )
 
                 # --- Send to model ---
                 session.add_user_message(augmented_text)
@@ -315,6 +333,10 @@ async def websocket_chat(websocket: WebSocket):
                 else:
                     full = "".join(collected_chunks)
                     partial = session.stopped()
+                    logger.debug(
+                        "Chat complete: content_chars=%d partial=%s",
+                        len(full), partial,
+                    )
                     await websocket.send_json({
                         "type": "message_complete",
                         "payload": {"full_content": full, "partial": partial},

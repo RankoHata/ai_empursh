@@ -15,6 +15,27 @@ from openai import AsyncOpenAI
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _history_summary(history: list[dict[str, Any]]) -> str:
+    """One-line summary of history message roles for debug logging."""
+    roles = []
+    for m in history:
+        r = m.get("role", "?")
+        if r == "assistant" and m.get("tool_calls"):
+            r = "assistant[tool_calls]"
+        elif r == "tool":
+            r = f"tool(id={m.get('tool_call_id','?')[:8]})"
+        roles.append(r)
+    return " → ".join(roles) if roles else "(empty)"
+
+
+# ---------------------------------------------------------------------------
+# ChatSession
+# ---------------------------------------------------------------------------
+
 class ChatSession:
     """Per-connection session holding conversation history and a stop event."""
 
@@ -38,31 +59,49 @@ class ChatSession:
         self._on_tool_result = on_tool_result
         self._max_tool_rounds = max_tool_rounds
 
+        logger.debug(
+            "ChatSession created: model=%s max_rounds=%d max_messages=%d "
+            "max_tool_rounds=%d has_tools=%s",
+            model_name, max_rounds, self._max_messages,
+            max_tool_rounds, tool_registry is not None,
+        )
+
     # ------------------------------------------------------------------
     # History management
     # ------------------------------------------------------------------
 
     def add_user_message(self, content: str) -> None:
+        logger.debug("History ← user (%d chars): %s", len(content), content[:80])
         self._history.append({"role": "user", "content": content})
         self._trim()
 
     def add_system_message(self, content: str) -> None:
         """Inject a system message into history (e.g. tool-loop limit warning)."""
+        logger.debug("History ← system: %s", content[:80])
         self._history.append({"role": "system", "content": content})
         self._trim()
 
     def add_assistant_message(self, content: str) -> None:
+        logger.debug("History ← assistant (%d chars): %s", len(content), content[:80])
         self._history.append({"role": "assistant", "content": content})
         self._trim()
 
     def _trim(self) -> None:
         """Keep only the most recent N messages; never orphan tool results."""
-        if len(self._history) <= self._max_messages:
+        before = len(self._history)
+        if before <= self._max_messages:
             return
         self._history = self._history[-self._max_messages:]
         # Drop leading orphaned tool messages (their tool_calls was trimmed off)
+        orphaned = 0
         while self._history and self._history[0].get("role") == "tool":
             self._history.pop(0)
+            orphaned += 1
+        if orphaned:
+            logger.debug(
+                "History trimmed: %d → %d messages (dropped %d orphaned tool msgs)",
+                before, len(self._history), orphaned,
+            )
 
     # ------------------------------------------------------------------
     # Stop signal
@@ -70,6 +109,7 @@ class ChatSession:
 
     def request_stop(self) -> None:
         """Signal the streaming loop to stop."""
+        logger.debug("Stop requested")
         self._stop_event.set()
 
     def clear_stop(self) -> None:
@@ -85,6 +125,11 @@ class ChatSession:
 
     async def stream_chat(self) -> AsyncGenerator[str, None]:
         """Stream tokens without tool definitions. Backward-compatible."""
+        msg_count = len(self._history)
+        logger.debug(
+            "API call (no tools): model=%s messages=%d history=[%s]",
+            self._model_name, msg_count, _history_summary(self._history),
+        )
         try:
             stream = await self._client.chat.completions.create(
                 model=self._model_name,
@@ -97,6 +142,7 @@ class ChatSession:
             raise
 
         collected: list[str] = []
+        chunk_count = 0
         try:
             async for chunk in stream:
                 if self._stop_event.is_set():
@@ -106,11 +152,17 @@ class ChatSession:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
                     collected.append(delta.content)
+                    chunk_count += 1
                     yield delta.content
         finally:
             await stream.close()
 
         full_text = "".join(collected)
+        logger.debug(
+            "API done (no tools): tokens=%d content_chars=%d finish_reason=%s",
+            chunk_count, len(full_text),
+            "stopped" if self._stop_event.is_set() else "stop",
+        )
         if full_text:
             self.add_assistant_message(full_text)
 
@@ -133,6 +185,13 @@ class ChatSession:
         accumulated_tool_calls: dict[int, dict[str, Any]] = {}
         tool_calls_yielded: bool = False
 
+        tool_names = [t["function"]["name"] for t in tool_schemas]
+        logger.debug(
+            "API call (with tools): model=%s messages=%d tools=%s history=[%s]",
+            self._model_name, len(self._history), tool_names,
+            _history_summary(self._history),
+        )
+
         try:
             stream = await self._client.chat.completions.create(
                 model=self._model_name,
@@ -145,6 +204,7 @@ class ChatSession:
             logger.error("Failed to create chat completion with tools: %s", exc)
             raise
 
+        content_count = 0
         try:
             async for chunk in stream:
                 if self._stop_event.is_set():
@@ -159,6 +219,7 @@ class ChatSession:
                 # --- content tokens ---
                 if delta and delta.content:
                     accumulated_content.append(delta.content)
+                    content_count += 1
                     yield ("content", delta.content)
 
                 # --- tool_call tokens (may arrive interleaved with content) ---
@@ -173,6 +234,10 @@ class ChatSession:
                                     "arguments": "",
                                 },
                             }
+                            logger.debug(
+                                "Tool call fragment [idx=%d]: new call id=%s",
+                                idx, tc_delta.id,
+                            )
                         entry = accumulated_tool_calls[idx]
                         if tc_delta.id:
                             entry["id"] = tc_delta.id
@@ -207,11 +272,22 @@ class ChatSession:
                     }
                     if full_text:
                         assistant_msg["content"] = full_text
+
+                    logger.debug(
+                        "History ← assistant[tool_calls] (%d calls): %s",
+                        len(tool_call_blocks),
+                        [(b["function"]["name"], b["function"]["arguments"][:80])
+                         for b in tool_call_blocks],
+                    )
                     self._history.append(assistant_msg)
 
                     for idx in sorted(accumulated_tool_calls):
                         tc = accumulated_tool_calls[idx]
                         func = tc["function"]
+                        logger.debug(
+                            "Yield tool_call: name=%s id=%s args=%s",
+                            func["name"], tc["id"], func["arguments"][:120],
+                        )
                         yield ("tool_call", {
                             "id": tc["id"],
                             "name": func["name"],
@@ -224,8 +300,19 @@ class ChatSession:
         # Add pure-text assistant message to history (tool_calls already handled above)
         if not tool_calls_yielded:
             full_text = "".join(accumulated_content)
+            logger.debug(
+                "API done (with tools): content_tokens=%d finish_reason=%s text_chars=%d",
+                content_count,
+                "stopped" if self._stop_event.is_set() else "stop",
+                len(full_text),
+            )
             if full_text:
                 self.add_assistant_message(full_text)
+        else:
+            logger.debug(
+                "API done (with tools): tool_calls yielded=%d content_tokens=%d",
+                len(accumulated_tool_calls), content_count,
+            )
 
     # ------------------------------------------------------------------
     # Full tool loop (multi-turn)
@@ -242,17 +329,22 @@ class ChatSession:
         events to the frontend.
         """
         if self._tool_registry is None:
+            logger.debug("Tool loop: no registry, falling back to stream_chat")
             async for token in self.stream_chat():
                 yield ("content", token)
             return
 
         tool_round = 0
+        logger.debug("Tool loop start: max_rounds=%d tools=%d",
+                     self._max_tool_rounds, len(tool_schemas))
 
         while tool_round < self._max_tool_rounds:
             if self._stop_event.is_set():
+                logger.debug("Tool loop: stopped at round %d", tool_round)
                 break
 
             had_tool_call = False
+            logger.debug("Tool loop round %d: calling stream_chat_with_tools", tool_round)
 
             async for event_type, data in self.stream_chat_with_tools(tool_schemas):
                 if event_type == "content":
@@ -266,7 +358,17 @@ class ChatSession:
                     try:
                         tool_args = json.loads(data["arguments"])
                     except json.JSONDecodeError:
+                        logger.warning(
+                            "Tool call '%s': invalid JSON args: %s",
+                            tool_name, data["arguments"][:120],
+                        )
                         tool_args = {}
+
+                    logger.debug(
+                        "Tool call '%s' id=%s args=%s",
+                        tool_name, tool_call_id[:8],
+                        json.dumps(tool_args, ensure_ascii=False)[:200],
+                    )
 
                     # Notify callback
                     if self._on_tool_call:
@@ -279,6 +381,13 @@ class ChatSession:
                     result_json = await self._tool_registry.execute(tool_name, tool_args)
                     result_dict = json.loads(result_json)
 
+                    logger.debug(
+                        "Tool result '%s': success=%s %s",
+                        tool_name,
+                        result_dict.get("success"),
+                        result_dict.get("message", ""),
+                    )
+
                     # Notify callback
                     if self._on_tool_result:
                         try:
@@ -287,6 +396,11 @@ class ChatSession:
                             logger.error("on_tool_result error: %s", exc)
 
                     # Feed result back to history
+                    logger.debug(
+                        "History ← tool(%s): %s",
+                        tool_call_id[:8],
+                        result_json[:120],
+                    )
                     self._history.append({
                         "role": "tool",
                         "tool_call_id": tool_call_id,
@@ -294,9 +408,11 @@ class ChatSession:
                     })
 
             if not had_tool_call:
+                logger.debug("Tool loop: no tool calls in round %d, done", tool_round)
                 break
 
             tool_round += 1
+            logger.debug("Tool loop: advancing to round %d", tool_round)
 
         if tool_round >= self._max_tool_rounds:
             logger.warning("Tool loop reached max rounds (%d), forcing reply", self._max_tool_rounds)
@@ -310,6 +426,10 @@ class ChatSession:
 
     def add_tool_result(self, tool_call_id: str, result_json: str) -> None:
         """Manually add a tool result message to history."""
+        logger.debug(
+            "History ← tool(%s) [manual]: %s",
+            tool_call_id[:8], result_json[:120],
+        )
         self._history.append({
             "role": "tool",
             "tool_call_id": tool_call_id,
