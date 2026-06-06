@@ -79,7 +79,27 @@ def search_notes(query: str | None = None, tags: list[str] | None = None) -> lis
                 (fts_query,),
             ).fetchall()
 
-            # Fallback: if FTS returns 0, try LIKE substring search
+            # Also search by tag name: find notes whose tags contain the query
+            tag_rows = conn.execute(
+                "SELECT DISTINCT n.id, n.content, n.created_at, n.updated_at "
+                "FROM notes n "
+                "JOIN note_tag nt ON n.id = nt.note_id "
+                "JOIN tags t ON nt.tag_id = t.id "
+                "WHERE t.name LIKE ? "
+                "ORDER BY n.created_at DESC",
+                (f"%{query.strip()}%",),
+            ).fetchall()
+
+            # Merge FTS results + tag results, deduplicate by id
+            seen_ids = set()
+            merged = []
+            for row in rows + tag_rows:
+                if row["id"] not in seen_ids:
+                    seen_ids.add(row["id"])
+                    merged.append(row)
+            rows = merged
+
+            # Fallback: if still 0, try LIKE substring search on content
             if not rows:
                 like_pattern = f"%{query.strip()}%"
                 rows = conn.execute(

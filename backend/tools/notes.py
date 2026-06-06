@@ -83,19 +83,21 @@ async def _add_note(content: str, tags: Optional[list[str]] = None) -> dict[str,
 search_notes_tool = ToolDefinition(
     name="search_notes",
     description=(
-        "搜索笔记数据库，支持关键词全文搜索和标签过滤。"
+        "搜索笔记数据库。同时搜索笔记正文（关键词）和标签名。"
         "返回匹配的笔记列表（包含 id、content 摘要、tags、创建时间）。"
         "当用户需要查找、检索、回忆之前记录的笔记时使用此工具。"
+        "**重要**：如果用户提到了类别、主题、领域（如'编程语言''工作''项目'），"
+        "优先使用 tags 参数过滤，而不是 query。"
     ),
     parameters={
         "query": {
             "type": "string",
-            "description": "搜索关键词，为空则返回全部笔记",
+            "description": "搜索笔记正文的关键词。如果用户明确说的是标签名/类别，请用 tags 参数代替。",
         },
         "tags": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "按标签过滤，如 ['工作', '项目']",
+            "description": "按标签名精确过滤。用户提到的分类/类别/主题都应作为 tags。如用户说'编程语言的笔记'则应传 ['编程语言']",
         },
         "limit": {
             "type": "integer",
