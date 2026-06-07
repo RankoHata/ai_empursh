@@ -101,7 +101,9 @@ class XTTSEngine(BaseTTSEngine):
                 progress_bar=False,
             )
             self._model.to(device)
-            logger.info("XTTS-v2 model loaded on %s", device)
+            # Cache default speaker (used when no reference audio provided)
+            self._default_speaker = (self._model.speakers or [None])[0] if self._model.speakers else None
+            logger.info("XTTS-v2 model loaded on %s (speakers: %s)", device, self._model.speakers)
         except Exception as exc:
             logger.error("Failed to load XTTS-v2 model: %s", exc)
             raise
@@ -118,8 +120,11 @@ class XTTSEngine(BaseTTSEngine):
             TEMP_DIR.mkdir(parents=True, exist_ok=True)
             output_path = str(TEMP_DIR / f"tts_{os.urandom(6).hex()}.wav")
 
-        # Determine speaker reference
+        # Determine speaker: reference audio > default speaker
         speaker_wav = self._ref_audio if self._ref_audio and os.path.exists(self._ref_audio) else None
+        speaker = None
+        if speaker_wav is None:
+            speaker = self._default_speaker
 
         # Run in thread (TTS library is synchronous)
         import asyncio
@@ -129,6 +134,7 @@ class XTTSEngine(BaseTTSEngine):
             lambda: self._model.tts_to_file(
                 text=text,
                 speaker_wav=speaker_wav,
+                speaker=speaker,
                 language=self._language,
                 file_path=output_path,
             ),
@@ -147,6 +153,9 @@ class XTTSEngine(BaseTTSEngine):
         self._load_model()
 
         speaker_wav = self._ref_audio if self._ref_audio and os.path.exists(self._ref_audio) else None
+        speaker = None
+        if speaker_wav is None:
+            speaker = self._default_speaker
 
         # Generate full audio in a temp buffer, then stream it in chunks
         import asyncio
@@ -155,7 +164,7 @@ class XTTSEngine(BaseTTSEngine):
         # Generate WAV bytes
         wav_bytes = await loop.run_in_executor(
             None,
-            lambda: self._generate_wav_bytes(text, speaker_wav),
+            lambda: self._generate_wav_bytes(text, speaker_wav, speaker),
         )
 
         # Stream in 8 KB chunks
@@ -169,13 +178,14 @@ class XTTSEngine(BaseTTSEngine):
     # Internal
     # ------------------------------------------------------------------
 
-    def _generate_wav_bytes(self, text: str, speaker_wav: Optional[str]) -> bytes:
+    def _generate_wav_bytes(self, text: str, speaker_wav: Optional[str], speaker: Optional[str] = None) -> bytes:
         """Generate WAV audio bytes (in-memory)."""
         import numpy as np
         # Synthesize to numpy array
         wav_np = self._model.tts(
             text=text,
             speaker_wav=speaker_wav,
+            speaker=speaker,
             language=self._language,
         )
         # wav_np is a numpy array of float32 samples
