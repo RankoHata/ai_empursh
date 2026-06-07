@@ -15,6 +15,10 @@ import wave
 from pathlib import Path
 from typing import Optional
 
+# Force torchaudio to use soundfile backend on Windows (avoids torchcodec/FFmpeg issues)
+if os.name == "nt":
+    os.environ["TORCHAUDIO_USE_SOUNDFILE_LEGACY_INTERFACE"] = "1"
+
 from voice.tts_base import BaseTTSEngine
 
 logger = logging.getLogger(__name__)
