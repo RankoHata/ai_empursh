@@ -50,18 +50,20 @@ _HTML_RE = re.compile(r'<[^>]+>')
 _TABLE_SEP_RE = re.compile(r'^[\|\s\-:]+$', re.MULTILINE)
 _TABLE_PIPE_RE = re.compile(r'\s*\|\s*')
 
-# Emoji and special symbols that TTS can't pronounce.
-# Uses unicode property escapes for precise matching.
-_EMOJI_RE = re.compile(
-    '[\U0001F300-\U0001F9FF'     # emoji & pictographs
-    '\U0001FA00-\U0001FAFF'     # symbols extended-A
-    '☀-➿'             # misc symbols, dingbats
-    '⭐-⭕'             # stars
-    '✂-➰'             # scissors, misc
-    '‍'                      # ZWJ (emoji combiner)
-    '︀-️'             # variation selectors
-    '■-◿'             # geometric shapes
-    '⏰-⏿'             # technical
+# Keep only characters that TTS can pronounce.
+# Removes emoji, dingbats, emoticon parts, fullwidth symbols, etc.
+_TTS_CLEAN_RE = re.compile(
+    '[^'               # negated charset — keep only these:
+    '一-鿿'    # CJK unified ideographs (Chinese)
+    '぀-ゟ'    # Hiragana
+    '゠-ヿ'    # Katakana
+    'a-zA-Z0-9'        # Latin & digits
+    '，。！？；：、'     # Chinese punctuation
+    '.,!?;:\'"~'       # Basic Latin punctuation + tilde
+    '（）【】《》「」'   # Chinese brackets
+    '～—…'            # Wave dash, em dash, ellipsis
+    ' \t\n\r'         # Whitespace
+    '+\\-*/=<>'       # Math symbols
     ']',
     re.UNICODE,
 )
@@ -134,8 +136,8 @@ def strip_markdown(text: Optional[str]) -> str:
     # 15. Unordered lists (after HR to avoid --- conflicts)
     text = _UL_RE.sub('', text)
 
-    # 16. Remove emoji and unpronounceable symbols
-    text = _EMOJI_RE.sub('', text)
+    # 16. Remove unpronounceable characters for TTS
+    text = _TTS_CLEAN_RE.sub('', text)
 
     # 17. Collapse 3+ blank lines -> 2
     text = _EXCESS_NL_RE.sub('\n\n', text)
