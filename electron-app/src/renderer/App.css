@@ -867,6 +867,36 @@ html, body, #root {
 }
 .setting-textarea:focus { border-color: var(--accent); }
 
+.personality-new-btn {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px dashed var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.personality-new-btn:hover { background: rgba(233, 69, 96, 0.08); }
+
+.personality-badge {
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-input);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.personality-delete-btn {
+  padding: 1px 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.4;
+}
+.personality-delete-btn:hover { opacity: 1; }
+
 /* === Live2D Pet Mode === */
 html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   background: transparent !important;

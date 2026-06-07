@@ -32,13 +32,17 @@ from db import notes as notes_db
 from voice import stt
 from voice import tts as voice_tts
 from agent import skills as skills_lib
-from agent.personality import load_personalities, get_default, save_custom_personality
+from agent.personality import (
+    ensure_seeded, list_personalities, get_personality,
+    create_personality, update_personality, delete_personality,
+    get_default_personality,
+)
 from tools import create_default_registry
 from utils.markdown import strip_markdown
 
-# Load skills and personalities on startup
+# Load skills and seed personalities on startup
 SKILLS = skills_lib.load_skills()
-PERSONALITIES = load_personalities()
+ensure_seeded()
 
 # Tool registry — created once at module load, shared across connections
 tool_registry = create_default_registry()
@@ -265,7 +269,7 @@ async def websocket_chat(websocket: WebSocket):
     tts_enabled = True
     current_conv_id: Optional[str] = None
     turn_index = 0
-    current_personality = get_default(PERSONALITIES)  # active personality
+    current_personality = get_default_personality()  # active personality (DB record)
 
     try:
         while True:
@@ -609,33 +613,61 @@ async def websocket_chat(websocket: WebSocket):
                     })
 
             elif msg_type == "get_personalities":
-                plist = [{"id": p["id"], "name": p["name"], "description": p.get("description", ""), "system_prompt": p.get("system_prompt", "")}
-                         for p in PERSONALITIES.values()]
+                plist = list_personalities()
                 await websocket.send_json({
                     "type": "personalities_list",
-                    "payload": {"personalities": plist, "current": current_personality["id"]},
+                    "payload": {"personalities": plist, "current": current_personality.get("id")},
                 })
 
             elif msg_type == "set_personality":
-                pid = payload.get("personality_id", "")
-                if pid and pid in PERSONALITIES:
-                    current_personality = PERSONALITIES[pid]
-                    logger.info("Personality set to: %s", current_personality["name"])
+                pid = int(payload.get("personality_id", 0))
+                p = get_personality(pid)
+                if p:
+                    current_personality = p
+                    logger.info("Personality set to: %s", p["name"])
                     await websocket.send_json({
                         "type": "personality_set",
-                        "payload": {"id": pid, "name": current_personality["name"]},
+                        "payload": {"id": pid, "name": p["name"]},
                     })
 
-            elif msg_type == "save_custom_personality":
-                data = payload.get("personality", {})
-                if data:
-                    save_custom_personality(data)
-                    # Reload to pick up changes
-                    PERSONALITIES.update(load_personalities())
-                    logger.info("Custom personality saved and reloaded")
+            elif msg_type == "create_personality":
+                name = payload.get("name", "").strip()
+                if name:
+                    p = create_personality(
+                        name=name,
+                        description=payload.get("description", ""),
+                        system_prompt=payload.get("system_prompt", ""),
+                    )
                     await websocket.send_json({
-                        "type": "personality_saved",
-                        "payload": {"ok": True},
+                        "type": "personality_created",
+                        "payload": p,
+                    })
+
+            elif msg_type == "update_personality":
+                pid = int(payload.get("id", 0))
+                if pid:
+                    p = update_personality(
+                        pid=pid,
+                        name=payload.get("name", ""),
+                        description=payload.get("description", ""),
+                        system_prompt=payload.get("system_prompt", ""),
+                    )
+                    if p:
+                        # If this was our current personality, update reference
+                        if current_personality.get("id") == pid:
+                            current_personality = p
+                        await websocket.send_json({
+                            "type": "personality_updated",
+                            "payload": p,
+                        })
+
+            elif msg_type == "delete_personality":
+                pid = int(payload.get("id", 0))
+                if pid:
+                    ok = delete_personality(pid)
+                    await websocket.send_json({
+                        "type": "personality_deleted",
+                        "payload": {"id": pid, "ok": ok},
                     })
 
             elif msg_type == "get_turns":

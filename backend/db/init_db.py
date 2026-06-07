@@ -58,6 +58,16 @@ END;
 
 -- Conversation storage (for history + debug)
 
+CREATE TABLE IF NOT EXISTS personalities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    system_prompt TEXT NOT NULL DEFAULT '',
+    is_seed INTEGER NOT NULL DEFAULT 0,  -- 1 = pre-built, cannot delete
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL DEFAULT '',

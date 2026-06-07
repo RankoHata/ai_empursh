@@ -57,7 +57,7 @@ export default function App() {
   const [activeConvId, setActiveConvId] = useState(null);
   const [debugMsgId, setDebugMsgId] = useState(null);
   const [personalities, setPersonalities] = useState([]);
-  const [currentPersonalityId, setCurrentPersonalityId] = useState('default');
+  const [currentPersonalityId, setCurrentPersonalityId] = useState(null);
 
   const [compactMode, setCompactMode] = useState(() => {
     return localStorage.getItem('compactMode') === '1';
@@ -208,11 +208,12 @@ export default function App() {
         break;
       }
 
-      case 'personality_saved': {
-        // Refresh personality list to get updated custom
+      case 'personality_created':
+      case 'personality_updated':
+      case 'personality_deleted':
+        // Refresh list from backend
         send('get_personalities', {});
         break;
-      }
 
       case 'error': {
         console.error('Server error:', payload.message);
@@ -574,7 +575,9 @@ export default function App() {
             personalities={personalities}
             currentPersonalityId={currentPersonalityId}
             onSetPersonality={(pid) => { send('set_personality', { personality_id: pid }); }}
-            onSaveCustom={(data) => { send('save_custom_personality', { personality: data }); }}
+            onCreatePersonality={(data) => { send('create_personality', data); }}
+            onUpdatePersonality={(id, data) => { send('update_personality', { id, ...data }); }}
+            onDeletePersonality={(id) => { if (confirm('确定删除此人格？')) send('delete_personality', { id }); }}
           />
       )}
 
