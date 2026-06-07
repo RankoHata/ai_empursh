@@ -32,7 +32,7 @@ from db import notes as notes_db
 from voice import stt
 from voice import tts as voice_tts
 from agent import skills as skills_lib
-from agent.personality import load_personalities, get_default
+from agent.personality import load_personalities, get_default, save_custom_personality
 from tools import create_default_registry
 from utils.markdown import strip_markdown
 
@@ -609,7 +609,7 @@ async def websocket_chat(websocket: WebSocket):
                     })
 
             elif msg_type == "get_personalities":
-                plist = [{"id": p["id"], "name": p["name"], "description": p.get("description", "")}
+                plist = [{"id": p["id"], "name": p["name"], "description": p.get("description", ""), "system_prompt": p.get("system_prompt", "")}
                          for p in PERSONALITIES.values()]
                 await websocket.send_json({
                     "type": "personalities_list",
@@ -624,6 +624,18 @@ async def websocket_chat(websocket: WebSocket):
                     await websocket.send_json({
                         "type": "personality_set",
                         "payload": {"id": pid, "name": current_personality["name"]},
+                    })
+
+            elif msg_type == "save_custom_personality":
+                data = payload.get("personality", {})
+                if data:
+                    save_custom_personality(data)
+                    # Reload to pick up changes
+                    PERSONALITIES.update(load_personalities())
+                    logger.info("Custom personality saved and reloaded")
+                    await websocket.send_json({
+                        "type": "personality_saved",
+                        "payload": {"ok": True},
                     })
 
             elif msg_type == "get_turns":

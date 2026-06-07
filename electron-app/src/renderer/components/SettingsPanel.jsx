@@ -1,15 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 export default function SettingsPanel({
   config, onUpdateConfig, onLoad,
   compactMode, onToggleCompact,
-  personalities, currentPersonalityId, onSetPersonality,
+  personalities, currentPersonalityId, onSetPersonality, onSaveCustom,
 }) {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [modelName, setModelName] = useState('');
   const [maxTokens, setMaxTokens] = useState(4096);
   const [saved, setSaved] = useState(false);
+
+  // Custom personality editor
+  const [editModal, setEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editPrompt, setEditPrompt] = useState('');
+
+  const customP = (personalities || []).find(p => p.id === 'custom');
+
+  const openEditor = useCallback(() => {
+    if (customP) {
+      setEditName(customP.name || '自定义助手');
+      setEditDesc(customP.description || '');
+      setEditPrompt(customP.system_prompt || '');
+    }
+    setEditModal(true);
+  }, [customP]);
+
+  const saveCustom = useCallback(() => {
+    if (onSaveCustom) {
+      onSaveCustom({
+        name: editName,
+        description: editDesc,
+        system_prompt: editPrompt,
+      });
+    }
+    setEditModal(false);
+  }, [editName, editDesc, editPrompt, onSaveCustom]);
 
   useEffect(() => { onLoad(); }, []); // eslint-disable-line
 
@@ -59,7 +87,15 @@ export default function SettingsPanel({
                   onChange={() => onSetPersonality && onSetPersonality(p.id)}
                 />
                 <div className="personality-info">
-                  <span className="personality-name">{p.name}</span>
+                  <div className="personality-name-row">
+                    <span className="personality-name">{p.name}</span>
+                    {p.id === 'custom' && (
+                      <button
+                        className="personality-edit-btn"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditor(); }}
+                      >✏️ 编辑</button>
+                    )}
+                  </div>
                   <span className="personality-desc">{p.description}</span>
                 </div>
               </label>
@@ -69,6 +105,44 @@ export default function SettingsPanel({
           <p className="setting-hint">加载中...</p>
         )}
       </div>
+
+      {/* Custom personality editor modal */}
+      {editModal && (
+        <div className="modal-overlay" onClick={() => setEditModal(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ width: 560, maxHeight: '80vh' }}>
+            <h3>✏️ 编辑自定义人格</h3>
+
+            <label className="setting-label">
+              名称
+              <input className="setting-input" value={editName}
+                onChange={(e) => setEditName(e.target.value)} />
+            </label>
+            <label className="setting-label">
+              描述
+              <input className="setting-input" value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)} />
+            </label>
+            <label className="setting-label">
+              系统 Prompt
+              <textarea
+                className="setting-textarea"
+                value={editPrompt}
+                onChange={(e) => setEditPrompt(e.target.value)}
+                rows={14}
+                placeholder="写给模型的系统 prompt..."
+              />
+            </label>
+            <p className="setting-hint">
+              提示：在 prompt 中描述助理的名字、性格、语气、行为准则。支持 Markdown。
+            </p>
+
+            <div className="modal-buttons">
+              <button className="btn-send" onClick={saveCustom}>保存</button>
+              <button className="btn-modal-cancel" onClick={() => setEditModal(false)}>取消</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="settings-section">
         <h3>模型配置</h3>

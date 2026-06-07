@@ -831,6 +831,42 @@ html, body, #root {
   color: var(--text-secondary);
 }
 
+.personality-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.personality-edit-btn {
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.personality-edit-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.setting-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+}
+.setting-textarea:focus { border-color: var(--accent); }
+
 /* === Live2D Pet Mode === */
 html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   background: transparent !important;

@@ -23,6 +23,9 @@ Thumbs.db
 # Config (contains API keys)
 backend/config.yaml
 
+# Custom personality (user editable)
+backend/personalities/custom.yaml
+
 # Database (user data)
 backend/data/
 

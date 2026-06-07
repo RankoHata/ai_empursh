@@ -208,6 +208,12 @@ export default function App() {
         break;
       }
 
+      case 'personality_saved': {
+        // Refresh personality list to get updated custom
+        send('get_personalities', {});
+        break;
+      }
+
       case 'error': {
         console.error('Server error:', payload.message);
         break;
@@ -568,6 +574,7 @@ export default function App() {
             personalities={personalities}
             currentPersonalityId={currentPersonalityId}
             onSetPersonality={(pid) => { send('set_personality', { personality_id: pid }); }}
+            onSaveCustom={(data) => { send('save_custom_personality', { personality: data }); }}
           />
       )}
 

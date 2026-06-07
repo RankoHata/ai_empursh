@@ -66,6 +66,23 @@ def get_personality(personalities: dict, pid: str) -> Optional[dict[str, Any]]:
     return personalities.get(pid)
 
 
+def save_custom_personality(data: dict[str, Any]) -> str:
+    """Save custom personality to custom.yaml. Returns the file path."""
+    import yaml
+    path = PERSONALITIES_DIR / "custom.yaml"
+    payload = {
+        "name": data.get("name", "自定义助手"),
+        "description": data.get("description", ""),
+        "system_prompt": data.get("system_prompt", ""),
+        "avatar": data.get("avatar", {"default_emotion": "idle"}),
+        "voice": data.get("voice", {"preset": "default"}),
+    }
+    with open(path, "w", encoding="utf-8") as fh:
+        yaml.dump(payload, fh, allow_unicode=True, default_flow_style=False)
+    logger.info("Saved custom personality to %s", path)
+    return str(path)
+
+
 def get_default(personalities: dict) -> dict[str, Any]:
     """Return the default personality, or a minimal fallback."""
     if DEFAULT_PERSONALITY in personalities:
