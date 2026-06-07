@@ -37,6 +37,7 @@ full = [
     "edge-tts>=7.0.0",
     "coqui-tts>=0.24.0",
     "torch>=2.0.0",
+    "torchaudio>=2.0.0",
 ]
 
 [dependency-groups]
