@@ -20,7 +20,7 @@ from typing import Optional
 from voice.tts_base import BaseTTSEngine
 
 # Accept Coqui license (avoids interactive y/n prompt on model download)
-os.environ.setdefault("COQUI_TTS_AGREED", "1")
+os.environ.setdefault("COQUI_TOS_AGREED", "1")
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,13 @@ class XTTSEngine(BaseTTSEngine):
             ) from exc
 
         try:
-            device = "cuda" if self._use_gpu else "cpu"
+            import torch
+            if self._use_gpu and torch.cuda.is_available():
+                device = "cuda"
+            else:
+                if self._use_gpu:
+                    logger.info("CUDA not available, falling back to CPU")
+                device = "cpu"
             self._model = TTSClass(
                 model_name="tts_models/multilingual/multi-dataset/xtts_v2",
                 progress_bar=False,
