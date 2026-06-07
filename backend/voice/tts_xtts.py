@@ -77,21 +77,21 @@ class XTTSEngine(BaseTTSEngine):
 
         logger.info("Loading XTTS-v2 model (first call, ~1.8 GB download if not cached)...")
 
-        # Try multiple import paths (coqui-tts installs as 'TTS', xtts-api-server
-        # depends on coqui-tts which also installs as 'TTS').
         TTS = None
+        errors = []
         for pkg_name in ("TTS", "coqui_tts"):
             try:
-                mod = __import__(f"{pkg_name}.api", fromlist=["TTS"])
-                TTS = getattr(mod, "TTS", None)
+                mod = __import__(pkg_name)
+                TTS = getattr(mod, "api", None)
                 if TTS is not None:
+                    TTS = getattr(TTS, "TTS", TTS)
                     break
-            except ImportError:
-                continue
+            except Exception as exc:
+                errors.append(f"{pkg_name}: {exc}")
 
         if TTS is None:
             raise RuntimeError(
-                "XTTS-v2 requires coqui-tts (or the xtts-api-server package). "
+                f"XTTS-v2 failed to load coqui-tts. Errors: {'; '.join(errors)}. "
                 "Install with: uv sync --extra tts-xtts"
             )
 
