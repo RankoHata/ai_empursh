@@ -465,6 +465,7 @@ export default function App() {
     if (connectionStatus === 'connected' && prevStatusRef.current !== 'connected') {
       send('list_conversations', {});
       send('get_personalities', {});
+      send('get_config', {});
     }
     prevStatusRef.current = connectionStatus;
   }, [connectionStatus, send]);

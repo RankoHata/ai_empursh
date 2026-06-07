@@ -52,9 +52,9 @@ export default function SettingsPanel({
 
   useEffect(() => {
     if (config) {
-      if (config.model?.base_url) setBaseUrl(config.model.base_url);
-      if (config.model?.model_name) setModelName(config.model.model_name);
-      if (config.model?.max_tokens) setMaxTokens(config.model.max_tokens);
+      setBaseUrl(config.model?.base_url || '');
+      setModelName(config.model?.model_name || '');
+      setMaxTokens(config.model?.max_tokens || 4096);
       setApiKey('');
     }
   }, [config]);
