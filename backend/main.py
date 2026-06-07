@@ -69,13 +69,14 @@ def load_config() -> dict:
         return yaml.safe_load(fh)
 
 
-cfg = load_config()
-MODEL_CFG = cfg["model"]
-SERVER_CFG = cfg["server"]
-CHAT_CFG = cfg["chat"]
+_cfg = load_config()
+MODEL_CFG = _cfg["model"]
+SERVER_CFG = _cfg["server"]
+CHAT_CFG = _cfg["chat"]
+VOICE_CFG = _cfg.get("voice", {})
 
 # Configure TTS engine from config (edge-tts or XTTS-v2)
-voice_tts.configure_engine(cfg)
+voice_tts.configure_engine(_cfg)
 
 # ---------------------------------------------------------------------------
 # OpenAI client (lazy init in lifespan)
@@ -480,7 +481,7 @@ async def websocket_chat(websocket: WebSocket):
                     "voice": {
                         "stt_model": "base",
                         "tts_engine": voice_tts.get_engine_name(),
-                        "tts_voice": cfg.get("voice", {}).get("tts_voice", "zh-CN-XiaoxiaoNeural"),
+                        "tts_voice": VOICE_CFG.get("tts_voice", "zh-CN-XiaoxiaoNeural"),
                     },
                 }
                 await websocket.send_json({"type": "config", "payload": safe_cfg})
