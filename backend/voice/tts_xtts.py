@@ -15,8 +15,6 @@ import wave
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
-
 from voice.tts_base import BaseTTSEngine
 
 logger = logging.getLogger(__name__)
@@ -160,6 +158,7 @@ class XTTSEngine(BaseTTSEngine):
 
     def _generate_wav_bytes(self, text: str, speaker_wav: Optional[str]) -> bytes:
         """Generate WAV audio bytes (in-memory)."""
+        import numpy as np
         # Synthesize to numpy array
         wav_np = self._model.tts(
             text=text,
@@ -170,8 +169,9 @@ class XTTSEngine(BaseTTSEngine):
         return self._numpy_to_wav_bytes(wav_np, self.sample_rate)
 
     @staticmethod
-    def _numpy_to_wav_bytes(audio: np.ndarray, sample_rate: int) -> bytes:
+    def _numpy_to_wav_bytes(audio: "np.ndarray", sample_rate: int) -> bytes:
         """Convert float32 numpy array [-1, 1] to WAV bytes."""
+        import numpy as np
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wf:
             wf.setnchannels(1)

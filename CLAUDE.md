@@ -76,21 +76,46 @@ cp "CubismSdkForWeb-5-r.5/Core/live2dcubismcore.min.js" electron-app/assets/live
 
 ### 5. 安装依赖
 
-```bash
-# Python 依赖（国内需代理）
-cd backend
-pip install --proxy http://127.0.0.1:7890 -r requirements.txt
-# 如果代理未运行则直接: pip install -r requirements.txt
-# 如果 pip 报 SSL 错误: no_proxy="*" pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
-cd ..
+#### Python 后端 — 使用 uv（推荐）
 
-# 前端依赖（国内需代理）
+```bash
+# 安装 uv（如果没有）
+pip install uv
+
+cd backend
+
+# 轻量安装（core + edge-tts，无需 GPU，推荐）
+uv sync --extra tts-edge
+
+# 或：完整安装（含 XTTS-v2 语音克隆，需 torch ~2GB）
+#   uv sync --extra full
+
+# 或：使用脚本
+#   sync.bat            → 轻量
+#   sync.bat full       → 完整
+#   sync.bat xtts       → XTTS-v2
+#   sync.bat bare       → 仅核心 API
+
+# 国内加速：
+#   $env:UV_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+#   uv sync --extra tts-edge
+cd ..
+```
+
+**按需安装对照**：
+
+| 场景 | 命令 | 额外依赖 |
+|------|------|---------|
+| 只用 edge-tts 语音 | `uv sync --extra tts-edge` | edge-tts |
+| 要语音识别 (STT) | `uv sync --extra tts-edge --extra stt` | +faster-whisper |
+| 要本地语音克隆 | `uv sync --extra tts-xtts` | +TTS +torch (~2GB) |
+| 全部功能 | `uv sync --extra full` | 以上全部 |
+
+#### 前端
+
+```bash
 cd electron-app
-npm config set proxy http://127.0.0.1:7890
-npm config set https-proxy http://127.0.0.1:7890
-npm config set strict-ssl false
 npm install
-# 无需代理时: npm install
 cd ..
 ```
 
