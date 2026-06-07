@@ -374,6 +374,12 @@ async def websocket_chat(websocket: WebSocket):
                             current_conv_id = conv["id"]
                             turn_index = 0
                             logger.info("Auto-created conversation %s", current_conv_id)
+                        elif not conv_db.get_conversation(current_conv_id):
+                            # Current conversation was deleted — create a new one
+                            logger.warning("Conversation %s no longer exists, auto-creating new one", current_conv_id)
+                            conv = conv_db.create_conversation(title=user_text)
+                            current_conv_id = conv["id"]
+                            turn_index = 0
 
                         trace = session.get_trace()
                         conv_db.add_turn(
@@ -592,6 +598,11 @@ async def websocket_chat(websocket: WebSocket):
                 conv_id = payload.get("conversation_id", "")
                 if conv_id:
                     deleted = conv_db.delete_conversation(conv_id)
+                    # Clear current conversation if it was deleted
+                    if conv_id == current_conv_id:
+                        current_conv_id = None
+                        turn_index = 0
+                        logger.info("Current conversation %s was deleted, resetting session", conv_id)
                     await websocket.send_json({
                         "type": "conversation_deleted",
                         "payload": {"conversation_id": conv_id, "deleted": deleted},
