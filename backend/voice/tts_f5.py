@@ -94,7 +94,7 @@ class F5TTSEngine(BaseTTSEngine):
             output_path = str(TEMP_DIR / f"tts_{os.urandom(6).hex()}.wav")
 
         ref_audio = self._ref_audio if self._has_ref_audio() else None
-        ref_text = self._ref_text if ref_audio else None
+        ref_text = self._ref_text if ref_audio and self._ref_text else None
 
         import asyncio
         loop = asyncio.get_running_loop()
@@ -102,7 +102,7 @@ class F5TTSEngine(BaseTTSEngine):
             None,
             lambda: self._model.infer(
                 ref_file=ref_audio,
-                ref_text=ref_text,
+                ref_text=ref_text or "",  # empty string = model uses audio only
                 gen_text=text,
             ),
         )
@@ -120,7 +120,7 @@ class F5TTSEngine(BaseTTSEngine):
         self._load_model()
 
         ref_audio = self._ref_audio if self._has_ref_audio() else None
-        ref_text = self._ref_text if ref_audio else None
+        ref_text = self._ref_text if ref_audio and self._ref_text else None
 
         import asyncio
         import torch
@@ -130,7 +130,7 @@ class F5TTSEngine(BaseTTSEngine):
             None,
             lambda: self._model.infer(
                 ref_file=ref_audio,
-                ref_text=ref_text,
+                ref_text=ref_text or "",
                 gen_text=text,
             ),
         )
