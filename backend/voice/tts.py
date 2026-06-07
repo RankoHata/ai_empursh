@@ -36,20 +36,21 @@ def configure_engine() -> BaseTTSEngine:
     voice_cfg = config.voice
     engine_type = voice_cfg.get("tts_engine", "edge").lower()
 
-    if engine_type == "xtts":
-        xtts_cfg = voice_cfg.get("xtts", {})
+    if engine_type == "f5":
+        f5_cfg = voice_cfg.get("f5", {})
         try:
-            from voice.tts_xtts import XTTSEngine
-            _engine = XTTSEngine(
-                reference_audio=xtts_cfg.get("reference_audio", ""),
-                language=xtts_cfg.get("language", "zh-cn"),
-                use_gpu=xtts_cfg.get("use_gpu", True),
+            from voice.tts_f5 import F5TTSEngine
+            _engine = F5TTSEngine(
+                reference_audio=f5_cfg.get("reference_audio", ""),
+                reference_text=f5_cfg.get("reference_text", ""),
+                language=f5_cfg.get("language", "zh"),
+                use_gpu=f5_cfg.get("use_gpu", True),
             )
-            logger.info("TTS engine: XTTS-v2")
+            logger.info("TTS engine: F5-TTS")
         except ImportError as exc:
             logger.warning(
-                "XTTS-v2 not available (%s), falling back to edge-tts. "
-                "Install with: uv sync --extra tts-xtts", exc,
+                "F5-TTS not available (%s), falling back to edge-tts. "
+                "Install with: uv sync --extra tts-f5", exc,
             )
             _engine = EdgeTTSEngine(voice=voice_cfg.get("tts_voice", DEFAULT_VOICE))
     else:

@@ -24,9 +24,9 @@ if "%1"=="" (
 ) else if "%1"=="edge" (
     echo === Installing: core + edge-tts ===
     uv sync --extra tts-edge
-) else if "%1"=="xtts" (
-    echo === Installing: core + XTTS-v2 voice cloning ===
-    uv sync --extra tts-xtts
+) else if "%1"=="f5" (
+    echo === Installing: core + F5-TTS voice cloning ===
+    uv sync --extra tts-f5
 ) else if "%1"=="full" (
     echo === Installing: full (everything) ===
     uv sync --extra full
