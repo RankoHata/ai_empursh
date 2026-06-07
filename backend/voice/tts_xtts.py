@@ -77,27 +77,17 @@ class XTTSEngine(BaseTTSEngine):
 
         logger.info("Loading XTTS-v2 model (first call, ~1.8 GB download if not cached)...")
 
-        TTS = None
-        errors = []
-        for pkg_name in ("TTS", "coqui_tts"):
-            try:
-                mod = __import__(pkg_name)
-                TTS = getattr(mod, "api", None)
-                if TTS is not None:
-                    TTS = getattr(TTS, "TTS", TTS)
-                    break
-            except Exception as exc:
-                errors.append(f"{pkg_name}: {exc}")
-
-        if TTS is None:
+        try:
+            from TTS.api import TTS as TTSClass
+        except Exception as exc:
             raise RuntimeError(
-                f"XTTS-v2 failed to load coqui-tts. Errors: {'; '.join(errors)}. "
+                f"XTTS-v2 failed to import coqui-tts: {exc}. "
                 "Install with: uv sync --extra tts-xtts"
-            )
+            ) from exc
 
         try:
             device = "cuda" if self._use_gpu else "cpu"
-            self._model = TTS(
+            self._model = TTSClass(
                 model_name="tts_models/multilingual/multi-dataset/xtts_v2",
                 progress_bar=False,
             )
