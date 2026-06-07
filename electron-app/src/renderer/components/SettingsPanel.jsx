@@ -52,24 +52,19 @@ export default function SettingsPanel({
 
   useEffect(() => {
     if (config) {
-      setBaseUrl(config.model?.base_url || '');
-      setModelName(config.model?.model_name || '');
-      setMaxTokens(config.model?.max_tokens || 4096);
+      if (config.model?.base_url) setBaseUrl(config.model.base_url);
+      if (config.model?.model_name) setModelName(config.model.model_name);
+      if (config.model?.max_tokens) setMaxTokens(config.model.max_tokens);
       setApiKey('');
     }
   }, [config]);
 
   const handleSave = () => {
-    const updates = {
-      model: {
-        base_url: baseUrl,
-        model_name: modelName,
-        max_tokens: parseInt(maxTokens, 10),
-      },
-    };
-    if (apiKey.trim()) {
-      updates.model.api_key = apiKey.trim();
-    }
+    const updates = { model: {} };
+    if (baseUrl.trim()) updates.model.base_url = baseUrl.trim();
+    if (modelName.trim()) updates.model.model_name = modelName.trim();
+    updates.model.max_tokens = parseInt(maxTokens, 10) || 4096;
+    if (apiKey.trim()) updates.model.api_key = apiKey.trim();
     onUpdateConfig(updates);
     setSaved(true);
     setApiKey('');

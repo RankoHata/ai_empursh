@@ -491,7 +491,10 @@ async def websocket_chat(websocket: WebSocket):
                     cfg = load_config()
                     for key, value in updates.items():
                         if isinstance(value, dict) and key in cfg and isinstance(cfg[key], dict):
-                            cfg[key].update(value)
+                            # Only update non-empty values (prevent accidental clearing)
+                            for sub_key, sub_val in value.items():
+                                if sub_val is not None and sub_val != "":
+                                    cfg[key][sub_key] = sub_val
                         else:
                             cfg[key] = value
                     with open(CONFIG_PATH, "w", encoding="utf-8") as fh:

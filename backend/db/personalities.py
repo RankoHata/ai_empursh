@@ -58,17 +58,6 @@ def seed_personalities() -> int:
                 seeded += 1
                 logger.info("Seeded personality: %s", data["name"])
 
-        # Ensure at least one editable custom slot exists
-        custom_exists = conn.execute(
-            "SELECT COUNT(*) as cnt FROM personalities WHERE is_seed=0"
-        ).fetchone()
-        if not custom_exists or custom_exists["cnt"] == 0:
-            conn.execute(
-                "INSERT INTO personalities (name, description, system_prompt, is_seed) VALUES (?, ?, ?, 0)",
-                ("自定义助手", "我自己定义的助理人格", "你是用户的私人 AI 桌面助理。使用中文回复。"),
-            )
-            logger.info("Created default custom personality slot")
-
         conn.commit()
         return seeded
     finally:
