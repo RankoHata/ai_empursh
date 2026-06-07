@@ -144,7 +144,7 @@ npm start
 - **TTS 朗读**默认开启，可在状态栏 `朗读 ○/●` 开关控制
 - **笔记**右键聊天消息 → "保存为笔记"
 - **材料整理**在聊天中输入 `/整理` 命令
-- **Live2D 模型**默认使用 Haru（SDK 示例），可在 `Live2DAvatar.jsx` 中切换 MODEL_URL
+- **Live2D 模型**使用 G36，可在 `Live2DAvatar.jsx` 中切换 MODEL_URL
 
 ### 故障排查
 
@@ -255,8 +255,7 @@ electron-app/
 │
 ├── ✏️  assets/live2d/
 │   ├── 🔧 live2dcubismcore.min.js  用户从 Live2D 官网下载
-│   ├── 📦 haru/                    SDK 示例模型 Haru
-│   ├── 📦 g36_1904/               用户提供的 G36 模型 (GitHub)
+│   └── 📦 g36_1904/               用户提供的 G36 模型 (GitHub)
 │   ├── ✏️  shaders/                我们复制的 shader 副本（运行时加载用）
 │   └── 🔧 icon/                    应用图标
 │
