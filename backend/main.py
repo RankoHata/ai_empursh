@@ -488,19 +488,19 @@ async def websocket_chat(websocket: WebSocket):
             elif msg_type == "update_config":
                 updates = payload.get("updates", {})
                 try:
-                    cfg = load_config()
+                    loaded_cfg = load_config()
                     for key, value in updates.items():
-                        if isinstance(value, dict) and key in cfg and isinstance(cfg[key], dict):
+                        if isinstance(value, dict) and key in loaded_cfg and isinstance(loaded_cfg[key], dict):
                             # Only update non-empty values (prevent accidental clearing)
                             for sub_key, sub_val in value.items():
                                 if sub_val is not None and sub_val != "":
-                                    cfg[key][sub_key] = sub_val
+                                    loaded_cfg[key][sub_key] = sub_val
                         else:
-                            cfg[key] = value
+                            loaded_cfg[key] = value
                     with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
-                        yaml.dump(cfg, fh, allow_unicode=True, default_flow_style=False)
+                        yaml.dump(loaded_cfg, fh, allow_unicode=True, default_flow_style=False)
                     MODEL_CFG.clear()
-                    MODEL_CFG.update(cfg["model"])
+                    MODEL_CFG.update(loaded_cfg["model"])
                     await websocket.send_json({"type": "config_updated", "payload": {"success": True}})
                 except Exception as exc:
                     await websocket.send_json({
