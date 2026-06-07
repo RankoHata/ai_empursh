@@ -29,6 +29,8 @@ tts-xtts = [
     "coqui-tts>=0.24.0",
     "torch>=2.0.0",
     "torchaudio>=2.0.0",
+    "transformers>=4.38.0,<4.46.0",
+    "tokenizers>=0.15.0,<0.21.0",
 ]
 
 # Full install (everything)
@@ -38,6 +40,8 @@ full = [
     "coqui-tts>=0.24.0",
     "torch>=2.0.0",
     "torchaudio>=2.0.0",
+    "transformers>=4.38.0,<4.46.0",
+    "tokenizers>=0.15.0,<0.21.0",
 ]
 
 [dependency-groups]
