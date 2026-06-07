@@ -1,10 +1,10 @@
 """
 Text-to-speech using F5-TTS (zero-shot voice cloning, cross-lingual).
 
-Requirements: pip install f5-tts
+Requirements: pip install f5-tts + FFmpeg shared build on PATH (Windows)
 Model: ~1GB, downloads from HuggingFace on first use (auto-cached).
 
-Voice cloning: provide a 5-10s reference WAV + its transcript.
+Voice cloning: provide a 5-10s reference WAV.
 The model clones the speaker's voice across languages (e.g. Japanese voice → Chinese).
 """
 
@@ -14,10 +14,6 @@ import os
 import wave
 from pathlib import Path
 from typing import Optional
-
-# Force torchaudio to use soundfile backend on Windows (avoids torchcodec/FFmpeg issues)
-if os.name == "nt":
-    os.environ["TORCHAUDIO_USE_SOUNDFILE_LEGACY_INTERFACE"] = "1"
 
 from voice.tts_base import BaseTTSEngine
 
