@@ -1,13 +1,14 @@
 """
-TTS engine factory — returns the configured engine instance.
+TTS engine factory — creates and manages the configured TTS engine.
 
-Keeps backward-compatible module-level functions: synthesize(), stream_synthesize().
-These delegate to the current engine, which can be swapped at runtime.
+Uses the AppConfig singleton for configuration. The engine is created
+at startup via configure_engine() and can be swapped by re-calling it.
 """
 
 import logging
 from typing import Optional
 
+from config import config
 from voice.tts_base import BaseTTSEngine
 from voice.tts_edge import EdgeTTSEngine, DEFAULT_VOICE
 
@@ -18,7 +19,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _engine: Optional[BaseTTSEngine] = None
-_engine_name: str = "edge"  # default fallback
 
 
 def get_engine() -> BaseTTSEngine:
@@ -30,19 +30,10 @@ def get_engine() -> BaseTTSEngine:
     return _engine
 
 
-def configure_engine(config: dict) -> BaseTTSEngine:
-    """Create and set the TTS engine from config.
-
-    config['voice'] dict:
-        tts_engine:  "edge" | "xtts"  (default: "edge")
-        tts_voice:   voice name for edge-tts (default: zh-CN-XiaoxiaoNeural)
-        xtts:
-            reference_audio: path to WAV for voice cloning
-            language:        "zh-cn" | "en" | ...
-            use_gpu:         true | false
-    """
-    global _engine, _engine_name
-    voice_cfg = config.get("voice", {})
+def configure_engine() -> BaseTTSEngine:
+    """Create and set the TTS engine from the config singleton."""
+    global _engine
+    voice_cfg = config.voice
     engine_type = voice_cfg.get("tts_engine", "edge").lower()
 
     if engine_type == "xtts":
@@ -54,28 +45,23 @@ def configure_engine(config: dict) -> BaseTTSEngine:
                 language=xtts_cfg.get("language", "zh-cn"),
                 use_gpu=xtts_cfg.get("use_gpu", True),
             )
-            _engine_name = "xtts"
-            logger.info("TTS engine: XTTS-v2 (voice cloning)")
+            logger.info("TTS engine: XTTS-v2")
         except ImportError as exc:
             logger.warning(
                 "XTTS-v2 not available (%s), falling back to edge-tts. "
-                "Install with: pip install TTS torch", exc,
+                "Install with: uv sync --extra tts-xtts", exc,
             )
-            voice = voice_cfg.get("tts_voice", DEFAULT_VOICE)
-            _engine = EdgeTTSEngine(voice=voice)
-            _engine_name = "edge"
+            _engine = EdgeTTSEngine(voice=voice_cfg.get("tts_voice", DEFAULT_VOICE))
     else:
-        voice = voice_cfg.get("tts_voice", DEFAULT_VOICE)
-        _engine = EdgeTTSEngine(voice=voice)
-        _engine_name = "edge"
-        logger.info("TTS engine: edge-tts (voice=%s)", voice)
+        _engine = EdgeTTSEngine(voice=voice_cfg.get("tts_voice", DEFAULT_VOICE))
+        logger.info("TTS engine: edge-tts")
 
     return _engine
 
 
 def get_engine_name() -> str:
     """Return the current engine type name."""
-    return _engine_name
+    return get_engine().name
 
 
 # ---------------------------------------------------------------------------

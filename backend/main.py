@@ -60,7 +60,7 @@ logger = logging.getLogger("backend")
 
 # ---------------------------------------------------------------------------
 # Configure TTS engine from config (edge-tts or XTTS-v2)
-voice_tts.configure_engine({"voice": config.voice})
+voice_tts.configure_engine()
 
 # ---------------------------------------------------------------------------
 # OpenAI client (lazy init in lifespan)
