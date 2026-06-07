@@ -30,48 +30,46 @@ DEFAULT_PERSONALITY_ID = "default"
 
 def seed_personalities() -> int:
     """Import YAML personality files into DB if table is empty.
+    Also ensures at least one user-editable custom slot exists.
 
-    Returns the number of personalities seeded.
+    Returns the number of new seed personalities imported.
     """
     conn = get_connection()
     try:
         existing = conn.execute("SELECT COUNT(*) as cnt FROM personalities").fetchone()
-        if existing and existing["cnt"] > 0:
-            return 0  # already seeded
+        was_empty = not existing or existing["cnt"] == 0
 
         seeded = 0
-        for yaml_file in sorted(SEED_DIR.glob("*.yaml")):
-            try:
-                with open(yaml_file, "r", encoding="utf-8") as fh:
-                    data = yaml.safe_load(fh)
-            except Exception as exc:
-                logger.warning("Skipping %s: %s", yaml_file.name, exc)
-                continue
+        if was_empty:
+            for yaml_file in sorted(SEED_DIR.glob("*.yaml")):
+                try:
+                    with open(yaml_file, "r", encoding="utf-8") as fh:
+                        data = yaml.safe_load(fh)
+                except Exception as exc:
+                    logger.warning("Skipping %s: %s", yaml_file.name, exc)
+                    continue
+                if not data or "name" not in data:
+                    continue
+                conn.execute(
+                    "INSERT INTO personalities (name, description, system_prompt, is_seed) "
+                    "VALUES (?, ?, ?, 1)",
+                    (data.get("name", yaml_file.stem), data.get("description", ""), data.get("system_prompt", "")),
+                )
+                seeded += 1
+                logger.info("Seeded personality: %s", data["name"])
 
-            if not data or "name" not in data:
-                continue
-
+        # Ensure at least one editable custom slot exists
+        custom_exists = conn.execute(
+            "SELECT COUNT(*) as cnt FROM personalities WHERE is_seed=0"
+        ).fetchone()
+        if not custom_exists or custom_exists["cnt"] == 0:
             conn.execute(
-                "INSERT INTO personalities (name, description, system_prompt, is_seed) "
-                "VALUES (?, ?, ?, 1)",
-                (
-                    data.get("name", yaml_file.stem),
-                    data.get("description", ""),
-                    data.get("system_prompt", ""),
-                ),
+                "INSERT INTO personalities (name, description, system_prompt, is_seed) VALUES (?, ?, ?, 0)",
+                ("自定义助手", "我自己定义的助理人格", "你是用户的私人 AI 桌面助理。使用中文回复。"),
             )
-            seeded += 1
-            logger.info("Seeded personality: %s", data["name"])
-
-        # Also create a default "custom" empty slot
-        conn.execute(
-            "INSERT INTO personalities (name, description, system_prompt, is_seed) "
-            "VALUES (?, ?, ?, 0)",
-            ("自定义助手", "我自己定义的助理人格", "你是用户的私人 AI 桌面助理。使用中文回复。"),
-        )
+            logger.info("Created default custom personality slot")
 
         conn.commit()
-        logger.info("Seeded %d personalities from YAML files", seeded)
         return seeded
     finally:
         conn.close()

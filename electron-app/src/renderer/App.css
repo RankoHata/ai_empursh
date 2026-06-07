@@ -888,14 +888,18 @@ html, body, #root {
 }
 
 .personality-delete-btn {
-  padding: 1px 6px;
-  border: none;
-  background: none;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
   cursor: pointer;
   font-size: 12px;
-  opacity: 0.4;
+  color: var(--text-secondary);
 }
-.personality-delete-btn:hover { opacity: 1; }
+.personality-delete-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /* === Live2D Pet Mode === */
 html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
