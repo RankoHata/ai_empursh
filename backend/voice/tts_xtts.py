@@ -19,6 +19,9 @@ from typing import Optional
 
 from voice.tts_base import BaseTTSEngine
 
+# Accept Coqui license (avoids interactive y/n prompt on model download)
+os.environ.setdefault("COQUI_TTS_AGREED", "1")
+
 logger = logging.getLogger(__name__)
 
 TEMP_DIR = Path(__file__).parent.parent / "temp"

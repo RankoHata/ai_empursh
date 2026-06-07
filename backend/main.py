@@ -71,9 +71,6 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 logger = logging.getLogger("backend")
 
 # ---------------------------------------------------------------------------
-# Accept Coqui TTS license (avoids interactive y/n prompt on model download)
-os.environ.setdefault("COQUI_TTS_AGREED", "1")
-
 # Configure TTS engine from config (edge-tts or XTTS-v2)
 voice_tts.configure_engine()
 
