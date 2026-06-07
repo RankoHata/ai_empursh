@@ -22,10 +22,10 @@ os.environ["NO_PROXY"] = "api.deepseek.com"
 from pathlib import Path
 from typing import Optional
 
-import yaml
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from openai import AsyncOpenAI
 
+from config import config
 from agent.chat import ChatSession
 from db import conversations as conv_db
 from db import notes as notes_db
@@ -59,24 +59,8 @@ logging.basicConfig(
 logger = logging.getLogger("backend")
 
 # ---------------------------------------------------------------------------
-# Config loading
-# ---------------------------------------------------------------------------
-CONFIG_PATH = Path(__file__).parent / "config.yaml"
-
-
-def load_config() -> dict:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
-
-
-_cfg = load_config()
-MODEL_CFG = _cfg["model"]
-SERVER_CFG = _cfg["server"]
-CHAT_CFG = _cfg["chat"]
-VOICE_CFG = _cfg.get("voice", {})
-
 # Configure TTS engine from config (edge-tts or XTTS-v2)
-voice_tts.configure_engine(_cfg)
+voice_tts.configure_engine({"voice": config.voice})
 
 # ---------------------------------------------------------------------------
 # OpenAI client (lazy init in lifespan)
@@ -93,8 +77,8 @@ def get_openai_client() -> AsyncOpenAI:
         #   set HTTP_PROXY=http://127.0.0.1:7890
         #   set HTTPS_PROXY=http://127.0.0.1:7890
         openai_client = AsyncOpenAI(
-            base_url=MODEL_CFG["base_url"],
-            api_key=MODEL_CFG["api_key"],
+            base_url=config.model["base_url"],
+            api_key=config.model["api_key"],
         )
     return openai_client
 
@@ -106,8 +90,8 @@ def get_openai_client() -> AsyncOpenAI:
 async def lifespan(app: FastAPI):
     """Startup: verify config, pre-warm OpenAI client. Shutdown: clean up."""
     logger.info("Starting AI Companion backend...")
-    logger.info("Model: %s @ %s", MODEL_CFG["model_name"], MODEL_CFG["base_url"])
-    logger.info("Server: %s:%s", SERVER_CFG["host"], SERVER_CFG["port"])
+    logger.info("Model: %s @ %s", config.model["model_name"], config.model["base_url"])
+    logger.info("Server: %s:%s", config.server["host"], config.server["port"])
 
     # Pre-init the client so the first request is fast
     get_openai_client()
@@ -138,7 +122,7 @@ _tts_streams: dict[str, str] = {}
 
 @app.get("/")
 async def health_check():
-    return {"status": "running", "model": MODEL_CFG["model_name"]}
+    return {"status": "running", "model": config.model["model_name"]}
 
 
 @app.get("/audio/{filename}")
@@ -260,8 +244,8 @@ async def websocket_chat(websocket: WebSocket):
 
     session = ChatSession(
         client=client,
-        model_name=MODEL_CFG["model_name"],
-        max_rounds=CHAT_CFG["max_history_rounds"],
+        model_name=config.model["model_name"],
+        max_rounds=config.chat["max_history_rounds"],
         tool_registry=tool_registry,
         on_tool_call=on_tool_call,
         on_tool_result=on_tool_result,
@@ -473,15 +457,15 @@ async def websocket_chat(websocket: WebSocket):
             elif msg_type == "get_config":
                 safe_cfg = {
                     "model": {
-                        "base_url": MODEL_CFG["base_url"],
-                        "api_key": "***" + MODEL_CFG.get("api_key", "")[-4:] if len(MODEL_CFG.get("api_key", "")) > 4 else "***",
-                        "model_name": MODEL_CFG["model_name"],
-                        "max_tokens": MODEL_CFG["max_tokens"],
+                        "base_url": config.model["base_url"],
+                        "api_key": "***" + config.model.get("api_key", "")[-4:] if len(config.model.get("api_key", "")) > 4 else "***",
+                        "model_name": config.model["model_name"],
+                        "max_tokens": config.model["max_tokens"],
                     },
                     "voice": {
                         "stt_model": "base",
                         "tts_engine": voice_tts.get_engine_name(),
-                        "tts_voice": VOICE_CFG.get("tts_voice", "zh-CN-XiaoxiaoNeural"),
+                        "tts_voice": config.voice.get("tts_voice", "zh-CN-XiaoxiaoNeural"),
                     },
                 }
                 await websocket.send_json({"type": "config", "payload": safe_cfg})
@@ -489,19 +473,7 @@ async def websocket_chat(websocket: WebSocket):
             elif msg_type == "update_config":
                 updates = payload.get("updates", {})
                 try:
-                    loaded_cfg = load_config()
-                    for key, value in updates.items():
-                        if isinstance(value, dict) and key in loaded_cfg and isinstance(loaded_cfg[key], dict):
-                            # Only update non-empty values (prevent accidental clearing)
-                            for sub_key, sub_val in value.items():
-                                if sub_val is not None and sub_val != "":
-                                    loaded_cfg[key][sub_key] = sub_val
-                        else:
-                            loaded_cfg[key] = value
-                    with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
-                        yaml.dump(loaded_cfg, fh, allow_unicode=True, default_flow_style=False)
-                    MODEL_CFG.clear()
-                    MODEL_CFG.update(loaded_cfg["model"])
+                    config.save(updates)
                     await websocket.send_json({"type": "config_updated", "payload": {"success": True}})
                 except Exception as exc:
                     await websocket.send_json({
@@ -733,7 +705,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host=SERVER_CFG["host"],
-        port=SERVER_CFG["port"],
+        host=config.server["host"],
+        port=config.server["port"],
         log_level="info",
     )
