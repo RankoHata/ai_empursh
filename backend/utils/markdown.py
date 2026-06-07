@@ -50,6 +50,22 @@ _HTML_RE = re.compile(r'<[^>]+>')
 _TABLE_SEP_RE = re.compile(r'^[\|\s\-:]+$', re.MULTILINE)
 _TABLE_PIPE_RE = re.compile(r'\s*\|\s*')
 
+# Emoji and special symbols that TTS can't pronounce.
+# Uses unicode property escapes for precise matching.
+_EMOJI_RE = re.compile(
+    '[\U0001F300-\U0001F9FF'     # emoji & pictographs
+    '\U0001FA00-\U0001FAFF'     # symbols extended-A
+    '☀-➿'             # misc symbols, dingbats
+    '⭐-⭕'             # stars
+    '✂-➰'             # scissors, misc
+    '‍'                      # ZWJ (emoji combiner)
+    '︀-️'             # variation selectors
+    '■-◿'             # geometric shapes
+    '⏰-⏿'             # technical
+    ']',
+    re.UNICODE,
+)
+
 # Excess blank lines: 3+ -> 2
 _EXCESS_NL_RE = re.compile(r'\n{3,}')
 
@@ -118,10 +134,13 @@ def strip_markdown(text: Optional[str]) -> str:
     # 15. Unordered lists (after HR to avoid --- conflicts)
     text = _UL_RE.sub('', text)
 
-    # 16. Collapse 3+ blank lines -> 2
+    # 16. Remove emoji and unpronounceable symbols
+    text = _EMOJI_RE.sub('', text)
+
+    # 17. Collapse 3+ blank lines -> 2
     text = _EXCESS_NL_RE.sub('\n\n', text)
 
-    # 17. Trim leading/trailing whitespace
+    # 18. Trim leading/trailing whitespace
     text = text.strip()
 
     return text
