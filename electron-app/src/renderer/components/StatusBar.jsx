@@ -6,7 +6,7 @@ const STATUS_LABELS = {
   connected: '已连接',
 };
 
-export default function StatusBar({ status, ttsEnabled, onToggleTts }) {
+export default function StatusBar({ status, ttsEnabled, onToggleTts, onOpenSettings }) {
   return (
     <div className="status-bar">
       <span className={`status-dot ${status}`} />
@@ -23,6 +23,9 @@ export default function StatusBar({ status, ttsEnabled, onToggleTts }) {
           {ttsEnabled ? '●' : '○'}
         </span>
       </label>
+      <button className="btn-settings" onClick={onOpenSettings} title="设置">
+        ⚙️
+      </button>
     </div>
   );
 }

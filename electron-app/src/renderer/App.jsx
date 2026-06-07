@@ -61,6 +61,10 @@ export default function App() {
   const [compactMode, setCompactMode] = useState(() => {
     return localStorage.getItem('compactMode') === '1';
   });
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [wallpaper, setWallpaper] = useState(() => {
+    return localStorage.getItem('wallpaper') || '';
+  });
   const audioRef = useRef(null);
   const sendRef = useRef(null);
   const ttsEnabledRef = useRef(ttsEnabled);
@@ -539,6 +543,7 @@ export default function App() {
           status={connectionStatus}
           ttsEnabled={ttsEnabled}
           onToggleTts={handleToggleTts}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
         {isSpeaking && (
           <div className="speaking-bar">
@@ -551,6 +556,9 @@ export default function App() {
             <span>🔧</span>
             <span>{toolToast.text}</span>
           </div>
+        )}
+        {wallpaper && (
+          <div className="wallpaper-layer" style={{ backgroundImage: `url(${wallpaper})` }} />
         )}
         {activeTab === 'chat' ? (
           <ChatPanel
@@ -565,7 +573,7 @@ export default function App() {
             compactMode={compactMode}
             onDeleteMessage={handleDeleteMessage}
           />
-        ) : activeTab === 'notes' ? (
+        ) : (
           <NotesPanel
             notes={notes}
             onGetNotes={handleGetNotes}
@@ -573,20 +581,34 @@ export default function App() {
             onDelete={handleDeleteNote}
             onExport={handleExportNotes}
           />
-        ) : (
-          <SettingsPanel
-            config={config}
-            onUpdateConfig={handleUpdateConfig}
-            onLoad={handleGetConfig}
-            compactMode={compactMode}
-            onToggleCompact={(v) => { setCompactMode(v); localStorage.setItem('compactMode', v ? '1' : '0'); }}
-            personalities={personalities}
-            currentPersonalityId={currentPersonalityId}
-            onSetPersonality={(pid) => { send('set_personality', { personality_id: pid }); }}
-            onCreatePersonality={(data) => { send('create_personality', data); }}
-            onUpdatePersonality={(id, data) => { send('update_personality', { id, ...data }); }}
-            onDeletePersonality={(id) => { if (confirm('确定删除此人格？')) send('delete_personality', { id }); }}
-          />
+        )}
+      </div>
+
+      {/* Settings Drawer */}
+      {settingsOpen && (
+        <div className="settings-modal-overlay" onClick={() => setSettingsOpen(false)}>
+          <div className="settings-panel-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-drawer-header">
+              <h2>⚙️ 设置</h2>
+              <button className="settings-drawer-close" onClick={() => setSettingsOpen(false)}>✕</button>
+            </div>
+            <SettingsPanel
+              config={config}
+              onUpdateConfig={handleUpdateConfig}
+              onLoad={handleGetConfig}
+              compactMode={compactMode}
+              onToggleCompact={(v) => { setCompactMode(v); localStorage.setItem('compactMode', v ? '1' : '0'); }}
+              personalities={personalities}
+              currentPersonalityId={currentPersonalityId}
+              onSetPersonality={(pid) => { send('set_personality', { personality_id: pid }); }}
+              onCreatePersonality={(data) => { send('create_personality', data); }}
+              onUpdatePersonality={(id, data) => { send('update_personality', { id, ...data }); }}
+              onDeletePersonality={(id) => { if (confirm('确定删除此人格？')) send('delete_personality', { id }); }}
+              wallpaper={wallpaper}
+              onSetWallpaper={(v) => { setWallpaper(v); localStorage.setItem('wallpaper', v); }}
+            />
+          </div>
+        </div>
       )}
 
       {saveModal && (
@@ -619,7 +641,6 @@ export default function App() {
           onCancel={handleCancelPreview}
         />
       )}
-      </div>
       <FeatureGuard flag="showLive2D">
         <div className="live2d-sidebar">
           <Live2DAvatar state={avatarState} />
