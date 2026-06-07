@@ -2,10 +2,10 @@
 REM Sync Python dependencies with uv (virtual environment managed by uv)
 REM Usage:
 REM   sync.bat            → core + edge-tts (lightweight, recommended)
-REM   sync.bat full       → everything (including XTTS-v2 voice cloning)
+REM   sync.bat full       → everything (including F5-TTS voice cloning)
 REM   sync.bat bare       → core API only
 REM   sync.bat edge       → core + edge-tts
-REM   sync.bat xtts       → core + XTTS-v2 voice cloning (needs Python 3.12)
+REM   sync.bat f5         → core + F5-TTS voice cloning
 REM   sync.bat dev        → full + test tools
 
 REM Ensure uv is in PATH
@@ -36,10 +36,10 @@ if "%1"=="" (
 ) else (
     echo Unknown option: %1
     echo.
-    echo Usage: sync.bat [bare^|edge^|xtts^|full^|dev]
+    echo Usage: sync.bat [bare^|edge^|f5^|full^|dev]
     echo   bare  - core API only (fastapi, uvicorn, openai, pyyaml^)
     echo   edge  - core + Microsoft edge-tts cloud TTS (default^)
-    echo   xtts  - core + XTTS-v2 local voice cloning
+    echo   f5    - core + F5-TTS local voice cloning
     echo   full  - everything
     echo   dev   - full + pytest
 )

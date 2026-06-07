@@ -39,6 +39,7 @@ Electron + React 桌面应用，通过 WebSocket 与 Python FastAPI 后端通信
 | pip | 22+ | `pip --version` |
 | Git | 任意 | `git --version` |
 | 代理工具 | — | 需要能访问外网（本机 127.0.0.1:7890 或系统代理） |
+| FFmpeg | 4.0+ (shared) | F5-TTS 语音克隆需要；`winget install Gyan.FFmpeg.Shared` |
 
 ### 2. 克隆项目
 
@@ -87,13 +88,13 @@ cd backend
 # 轻量安装（core + edge-tts，无需 GPU，推荐）
 uv sync --extra tts-edge
 
-# 或：完整安装（含 XTTS-v2 语音克隆，需 torch ~2GB）
+# 或：完整安装（含 F5-TTS 语音克隆，需 torch ~2GB + FFmpeg）
 #   uv sync --extra full
 
 # 或：使用脚本
 #   sync.bat            → 轻量
 #   sync.bat full       → 完整
-#   sync.bat xtts       → XTTS-v2
+#   sync.bat f5         → F5-TTS
 #   sync.bat bare       → 仅核心 API
 
 # 国内加速：
@@ -108,7 +109,7 @@ cd ..
 |------|------|---------|
 | 只用 edge-tts 语音 | `uv sync --extra tts-edge` | edge-tts |
 | 要语音识别 (STT) | `uv sync --extra tts-edge --extra stt` | +faster-whisper |
-| 要本地语音克隆 | `uv sync --extra tts-xtts` | +TTS +torch (~2GB) |
+| 要本地语音克隆 | `uv sync --extra tts-f5` | +f5-tts +torch (~2GB) + FFmpeg |
 | 全部功能 | `uv sync --extra full` | 以上全部 |
 
 #### 前端
@@ -155,6 +156,7 @@ npm start
 | pip install SSL 错误 | 代理干扰了 SSL。用 `no_proxy="*" pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt` |
 | Live2D 显示"加载中"不消失 | 确认 `electron-app/assets/live2d/live2dcubismcore.min.js` 存在 |
 | 录音后 WAV 无声音 | 检查系统麦克风权限设置 |
+| F5-TTS 报 `torchcodec` / `libtorchcodec_core8.dll` 找不到 | 未安装 FFmpeg shared 版本。`winget install Gyan.FFmpeg.Shared` 后重启终端 |
 | Electron 启动报 `@pixi/core` 找不到 | `npm install` 未成功安装 pixi-live2d-display 的子依赖。删除 `node_modules/` 重装 |
 
 ## 目录地图
@@ -188,7 +190,10 @@ backend/
 ├── ✏️  voice/
 │   ├── ✏️  __init__.py
 │   ├── ✏️  stt.py              faster-whisper 语音识别 + VAD
-│   └── ✏️  tts.py              edge-tts 语音合成
+│   ├── ✏️  tts.py              TTS 引擎工厂（edge-tts / F5-TTS）
+│   ├── ✏️  tts_base.py         TTS 引擎抽象基类
+│   ├── ✏️  tts_edge.py         EdgeTTSEngine（微软云 TTS）
+│   └── ✏️  tts_f5.py           F5TTSEngine（零样本语音克隆）
 ├── ✏️  utils/
 │   ├── ✏️  __init__.py
 │   └── ✏️  markdown.py         strip_markdown() — 剥离 Markdown 语法，供 TTS 用
