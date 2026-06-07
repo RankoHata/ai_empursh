@@ -1,11 +1,13 @@
 """
 Text-to-speech using Coqui XTTS-v2 (local voice cloning).
 
-Requirements: pip install TTS torch
+Requirements: xtts-api-server (or coqui-tts/TTS) + torch
 First run downloads the model (~1.8 GB) from HuggingFace.
 
 Voice cloning: provide a 5-10s reference WAV file.
 The model clones the speaker's voice and synthesizes in that style.
+
+Install: uv sync --extra tts-xtts
 """
 
 import io
@@ -74,9 +76,26 @@ class XTTSEngine(BaseTTSEngine):
             return
 
         logger.info("Loading XTTS-v2 model (first call, ~1.8 GB download if not cached)...")
-        try:
-            from TTS.api import TTS
 
+        # Try multiple import paths (coqui-tts installs as 'TTS', xtts-api-server
+        # depends on coqui-tts which also installs as 'TTS').
+        TTS = None
+        for pkg_name in ("TTS", "coqui_tts"):
+            try:
+                mod = __import__(f"{pkg_name}.api", fromlist=["TTS"])
+                TTS = getattr(mod, "TTS", None)
+                if TTS is not None:
+                    break
+            except ImportError:
+                continue
+
+        if TTS is None:
+            raise RuntimeError(
+                "XTTS-v2 requires coqui-tts (or the xtts-api-server package). "
+                "Install with: uv sync --extra tts-xtts"
+            )
+
+        try:
             device = "cuda" if self._use_gpu else "cpu"
             self._model = TTS(
                 model_name="tts_models/multilingual/multi-dataset/xtts_v2",
@@ -84,13 +103,8 @@ class XTTSEngine(BaseTTSEngine):
             )
             self._model.to(device)
             logger.info("XTTS-v2 model loaded on %s", device)
-        except ImportError:
-            raise RuntimeError(
-                "XTTS-v2 requires the 'TTS' package. Install with:\n"
-                "  pip install TTS torch"
-            )
         except Exception as exc:
-            logger.error("Failed to load XTTS-v2: %s", exc)
+            logger.error("Failed to load XTTS-v2 model: %s", exc)
             raise
 
     # ------------------------------------------------------------------

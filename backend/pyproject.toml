@@ -3,6 +3,7 @@ name = "ai-empursh-backend"
 version = "0.1.0"
 description = "AI Desktop Companion — FastAPI backend"
 requires-python = ">=3.10"
+# Note: tts-xtts extra requires Python >= 3.12 for pre-built wheels
 dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.27.0",
@@ -21,23 +22,19 @@ tts-edge = [
     "edge-tts>=7.0.0",
 ]
 
-# TTS — XTTS-v2 local voice cloning (heavy, needs GPU/CPU)
+# TTS — XTTS-v2 local voice cloning (lightweight, just the XTTS model)
 tts-xtts = [
-    "TTS>=0.22.0",
-    "torch>=2.0.0",
-    "numpy>=1.24.0",
+    "xtts-api-server>=0.1.0",
 ]
 
 # Full install (everything)
 full = [
     "faster-whisper>=1.0.0",
     "edge-tts>=7.0.0",
-    "TTS>=0.22.0",
-    "torch>=2.0.0",
-    "numpy>=1.24.0",
+    "xtts-api-server>=0.1.0",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.0.0",
 ]
