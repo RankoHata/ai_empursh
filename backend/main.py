@@ -41,6 +41,8 @@ SKILLS = skills_lib.load_skills()
 # Tool registry — created once at module load, shared across connections
 tool_registry = create_default_registry()
 
+# TTS engine configured at module load after config is read
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -65,6 +67,9 @@ cfg = load_config()
 MODEL_CFG = cfg["model"]
 SERVER_CFG = cfg["server"]
 CHAT_CFG = cfg["chat"]
+
+# Configure TTS engine from config (edge-tts or XTTS-v2)
+voice_tts.configure_engine(cfg)
 
 # ---------------------------------------------------------------------------
 # OpenAI client (lazy init in lifespan)
@@ -460,7 +465,11 @@ async def websocket_chat(websocket: WebSocket):
                         "model_name": MODEL_CFG["model_name"],
                         "max_tokens": MODEL_CFG["max_tokens"],
                     },
-                    "voice": {"stt_model": "base", "tts_voice": "zh-CN-XiaoxiaoNeural"},
+                    "voice": {
+                        "stt_model": "base",
+                        "tts_engine": voice_tts.get_engine_name(),
+                        "tts_voice": cfg.get("voice", {}).get("tts_voice", "zh-CN-XiaoxiaoNeural"),
+                    },
                 }
                 await websocket.send_json({"type": "config", "payload": safe_cfg})
 

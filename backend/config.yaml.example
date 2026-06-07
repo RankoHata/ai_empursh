@@ -10,3 +10,19 @@ server:
 
 chat:
   max_history_rounds: 20
+
+voice:
+  # TTS engine: "edge" (Microsoft cloud, no GPU) | "xtts" (local XTTS-v2, voice cloning)
+  tts_engine: "edge"
+
+  # Edge-tts voice (only used when tts_engine is "edge")
+  tts_voice: "zh-CN-XiaoxiaoNeural"
+
+  # XTTS-v2 settings (only used when tts_engine is "xtts")
+  xtts:
+    # Path to reference WAV audio file for voice cloning (5-10s, clear speech)
+    reference_audio: "assets/voice/reference.wav"
+    # Synthesis language
+    language: "zh-cn"
+    # Use GPU acceleration (set to false for CPU-only)
+    use_gpu: true
