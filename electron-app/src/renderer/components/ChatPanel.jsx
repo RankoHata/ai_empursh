@@ -38,7 +38,7 @@ function encodeWAV(samples, sampleRate) {
   return buffer;
 }
 
-export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSaveNote, onVoiceInput, onToggleDebug, debugMsgId, compactMode }) {
+export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSaveNote, onVoiceInput, onToggleDebug, debugMsgId, compactMode, onDeleteMessage }) {
   const [input, setInput] = useState('');
   const [ctxMenu, setCtxMenu] = useState(null);
   const [recording, setRecording] = useState(false);
@@ -61,8 +61,8 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSav
       e.preventDefault();
       const msgId = parseInt(bubble.dataset.msgId, 10);
       const msg = messages.find((m) => m.id === msgId);
-      if (msg && msg.role === 'assistant' && msg.content && !msg.isStreaming) {
-        setCtxMenu({ x: e.clientX, y: e.clientY, content: msg.content });
+      if (msg && msg.content && !msg.isStreaming) {
+        setCtxMenu({ x: e.clientX, y: e.clientY, content: msg.content, msgId: msg.id, turnIndex: msg.turnIndex });
       }
     };
     area.addEventListener('contextmenu', handler);
@@ -174,6 +174,11 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSav
     setCtxMenu(null);
   };
 
+  const handleDeleteMessage = () => {
+    if (ctxMenu && onDeleteMessage) onDeleteMessage(ctxMenu.msgId, ctxMenu.turnIndex);
+    setCtxMenu(null);
+  };
+
   return (
     <div className="chat-panel">
       <div className="messages-area" ref={messagesRef}>
@@ -195,8 +200,13 @@ export default function ChatPanel({ messages, isStreaming, onSend, onStop, onSav
 
       {ctxMenu && (
         <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
-          <button className="context-menu-item" onClick={handleSaveAsNote}>
-            💾 保存为笔记
+          {messages.find(m => m.id === ctxMenu.msgId)?.role === 'assistant' && (
+            <button className="context-menu-item" onClick={handleSaveAsNote}>
+              💾 保存为笔记
+            </button>
+          )}
+          <button className="context-menu-item context-menu-item-danger" onClick={handleDeleteMessage}>
+            🗑 删除
           </button>
         </div>
       )}

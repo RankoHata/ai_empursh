@@ -458,13 +458,20 @@ async def websocket_chat(websocket: WebSocket):
                 tts_enabled = payload.get("enabled", True)
                 logger.info("TTS enabled: %s", tts_enabled)
 
-            elif msg_type == "voice_mode":
-                always_on = payload.get("always_on", False)
-                logger.info("Voice mode: always_on=%s", always_on)
-                await websocket.send_json({
-                    "type": "voice_status",
-                    "payload": {"always_on": always_on, "recording": False},
-                })
+            elif msg_type == "delete_turn":
+                turn_index = payload.get("turn_index")
+                conv_id = payload.get("conversation_id", current_conv_id or "")
+                if conv_id and turn_index is not None:
+                    deleted = conv_db.delete_turn(conv_id, int(turn_index))
+                    await websocket.send_json({
+                        "type": "turn_deleted",
+                        "payload": {"conversation_id": conv_id, "turn_index": turn_index, "deleted": deleted},
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "payload": {"message": "Missing conversation_id or turn_index"},
+                    })
 
             elif msg_type == "get_config":
                 safe_cfg = {

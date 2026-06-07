@@ -47,7 +47,6 @@ export default function App() {
   const [saveModal, setSaveModal] = useState(null);
   const [saveTags, setSaveTags] = useState('');
   const [avatarState, setAvatarState] = useState('idle');
-  const [alwaysOn, setAlwaysOn] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [markdownPreview, setMarkdownPreview] = useState(null);
@@ -154,10 +153,6 @@ export default function App() {
 
       case 'avatar_state':
         setAvatarState(payload.action || 'idle');
-        break;
-
-      case 'voice_status':
-        setAlwaysOn(payload.always_on || false);
         break;
 
       case 'notes_list':
@@ -328,6 +323,13 @@ export default function App() {
         break;
       }
 
+      case 'turn_deleted': {
+        // Remove the deleted turn's messages from current view
+        const deletedTurnIndex = payload.turn_index;
+        setMessages((prev) => prev.filter((m) => m.turnIndex !== deletedTurnIndex));
+        break;
+      }
+
       case 'conversation_renamed': {
         const { conversation_id, title } = payload;
         setConversations(prev => prev.map(c =>
@@ -349,6 +351,7 @@ export default function App() {
           msgs.push({
             id: msgId++, role: 'user', content: turn.user_message,
             isStreaming: false, timestamp: turn.created_at,
+            turnIndex: turn.turn_index,
           });
           const tc = buildToolCallsFromTrace(turn.trace);
           msgs.push({
@@ -356,6 +359,7 @@ export default function App() {
             isStreaming: false, timestamp: turn.created_at,
             trace: turn.trace,
             toolCalls: tc,
+            turnIndex: turn.turn_index,
           });
         });
         setMessages(msgs);
@@ -392,6 +396,15 @@ export default function App() {
     setSaveTags('');
   }, []);
 
+  const handleDeleteMessage = useCallback((msgId, turnIndex) => {
+    if (turnIndex !== undefined && turnIndex !== null) {
+      // Delete from backend
+      send('delete_turn', { turn_index: turnIndex });
+    }
+    // Remove from local state
+    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+  }, [send]);
+
   const handleConfirmSave = useCallback(() => {
     if (!saveModal) return;
     const tags = saveTags.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean);
@@ -401,11 +414,6 @@ export default function App() {
 
   const handleVoiceInput = useCallback((base64Audio) => {
     send('voice_input', { audio_data: base64Audio });
-  }, [send]);
-
-  const handleToggleAlwaysOn = useCallback((on) => {
-    setAlwaysOn(on);
-    send('voice_mode', { always_on: on });
   }, [send]);
 
   const handleToggleTts = useCallback((on) => {
@@ -529,9 +537,7 @@ export default function App() {
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
         <StatusBar
           status={connectionStatus}
-          alwaysOn={alwaysOn}
           ttsEnabled={ttsEnabled}
-          onToggleAlwaysOn={handleToggleAlwaysOn}
           onToggleTts={handleToggleTts}
         />
         {isSpeaking && (
@@ -557,6 +563,7 @@ export default function App() {
             onToggleDebug={handleToggleDebug}
             debugMsgId={debugMsgId}
             compactMode={compactMode}
+            onDeleteMessage={handleDeleteMessage}
           />
         ) : activeTab === 'notes' ? (
           <NotesPanel

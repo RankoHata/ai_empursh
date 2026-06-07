@@ -6,7 +6,7 @@ const STATUS_LABELS = {
   connected: '已连接',
 };
 
-export default function StatusBar({ status, alwaysOn, ttsEnabled, onToggleAlwaysOn, onToggleTts }) {
+export default function StatusBar({ status, ttsEnabled, onToggleTts }) {
   return (
     <div className="status-bar">
       <span className={`status-dot ${status}`} />
@@ -21,17 +21,6 @@ export default function StatusBar({ status, alwaysOn, ttsEnabled, onToggleAlways
         />
         <span className={`toggle-switch ${ttsEnabled ? 'on' : ''}`}>
           {ttsEnabled ? '●' : '○'}
-        </span>
-      </label>
-      <label className="voice-toggle" title="常开模式：麦克风持续监听">
-        <span>🎤 常开</span>
-        <input
-          type="checkbox"
-          checked={alwaysOn}
-          onChange={(e) => onToggleAlwaysOn(e.target.checked)}
-        />
-        <span className={`toggle-switch ${alwaysOn ? 'on' : ''}`}>
-          {alwaysOn ? '●' : '○'}
         </span>
       </label>
     </div>

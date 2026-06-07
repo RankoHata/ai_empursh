@@ -167,6 +167,30 @@ def get_turn_count(conv_id: str) -> int:
         conn.close()
 
 
+def delete_turn(conv_id: str, turn_index: int) -> bool:
+    """Delete a single turn from a conversation. Re-indexes remaining turns."""
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "DELETE FROM conversation_turns WHERE conversation_id = ? AND turn_index = ?",
+            (conv_id, turn_index),
+        )
+        conn.commit()
+        if cur.rowcount > 0:
+            # Re-index remaining turns (shift indices down)
+            conn.execute(
+                "UPDATE conversation_turns SET turn_index = turn_index - 1 "
+                "WHERE conversation_id = ? AND turn_index > ?",
+                (conv_id, turn_index),
+            )
+            conn.commit()
+            logger.info("Deleted turn %s.%d", conv_id, turn_index)
+            return True
+        return False
+    finally:
+        conn.close()
+
+
 def build_history_from_turns(conv_id: str) -> list[dict[str, Any]]:
     """Rebuild ChatSession-compatible message history from stored turns.
 

@@ -399,6 +399,12 @@ html, body, #root {
 .context-menu-item:hover {
   background: var(--bg-input);
 }
+.context-menu-item-danger {
+  color: var(--accent);
+}
+.context-menu-item-danger:hover {
+  background: rgba(233, 69, 96, 0.15);
+}
 
 /* === Notes Panel === */
 .notes-panel {

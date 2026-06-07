@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 app.commandLine.appendSwitch('enable-webgl');
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
@@ -8,7 +9,43 @@ app.commandLine.appendSwitch('disable-gpu-vsync');
 let mainWindow = null;
 let live2dWindow = null;
 let tray = null;
+let appIconPath = null;
 const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
+
+// Generate a simple app icon (32x32 PNG) at startup so the taskbar shows it
+function createAppIcon() {
+  const size = 64;
+  const canvas = Buffer.alloc(size * size * 4);
+  const cx = size / 2, cy = size / 2, r = size / 2 - 2;
+  const r2 = r * r;
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x - cx, dy = y - cy;
+      const dist2 = dx * dx + dy * dy;
+      const idx = (y * size + x) * 4;
+      if (dist2 <= r2) {
+        // Gradient circle: purple-blue theme
+        const t = dist2 / r2;
+        canvas[idx]     = Math.round(100 + 55 * t);   // R
+        canvas[idx + 1] = Math.round(60 + 90 * t);    // G
+        canvas[idx + 2] = Math.round(220 - 60 * t);   // B
+        canvas[idx + 3] = 255;                         // A
+      } else {
+        canvas[idx] = canvas[idx + 1] = canvas[idx + 2] = 0;
+        canvas[idx + 3] = 0;
+      }
+    }
+  }
+
+  const img = nativeImage.createFromBuffer(canvas, { width: size, height: size });
+  const pngBuffer = img.toPNG();
+  const iconDir = path.join(app.getPath('userData'), 'icons');
+  fs.mkdirSync(iconDir, { recursive: true });
+  const iconPath = path.join(iconDir, 'app_icon.png');
+  fs.writeFileSync(iconPath, pngBuffer);
+  return iconPath;
+}
 
 function loadPage(win, query = '') {
   if (isDev) {
@@ -27,6 +64,7 @@ function createMainWindow() {
     minWidth: 900,
     minHeight: 550,
     title: 'AI 桌面助理',
+    icon: appIconPath,
     backgroundColor: '#1a1a2e',
     show: false, // start hidden
     webPreferences: {
@@ -120,6 +158,7 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+  appIconPath = createAppIcon();
   createMainWindow();
   createLive2dWindow();
   createTray();

@@ -143,8 +143,10 @@ npm start
 - **语音识别**首次调用会下载 faster-whisper 模型（~140MB），需要能访问 HuggingFace
 - **TTS 朗读**默认开启，可在状态栏 `朗读 ○/●` 开关控制
 - **笔记**右键聊天消息 → "保存为笔记"
+- **删除消息**右键聊天消息 → "删除"（已持久化的消息会同步删除后端记录）
 - **材料整理**在聊天中输入 `/整理` 命令
 - **Live2D 模型**使用 G36，可在 `Live2DAvatar.jsx` 中切换 MODEL_URL
+- **应用图标**首次启动时自动生成在 `userData/icons/app_icon.png`，用于任务栏显示
 
 ### 故障排查
 
@@ -228,7 +230,7 @@ electron-app/
 │   │   └── ✏️  components/
 │   │       ├── ✏️  ChatPanel.jsx       聊天面板 + 右键菜单 + 录音
 │   │       ├── ✏️  MessageBubble.jsx   消息气泡（助手 Markdown 渲染，用户纯文本）
-│   │       ├── ✏️  StatusBar.jsx       连接状态 + TTS/常开开关
+│   │       ├── ✏️  StatusBar.jsx       连接状态 + TTS 开关
 │   │       ├── ✏️  TabBar.jsx          标签栏
 │   │       ├── ✏️  NotesPanel.jsx      笔记面板
 │   │       ├── ✏️  NoteCard.jsx        笔记卡片
@@ -279,9 +281,9 @@ electron-app/
 
 所有消息 JSON: `{"type": "...", "payload": {...}}`
 
-前端→后端: `chat`, `stop`, `add_note`, `get_notes`, `search_notes`, `delete_note`, `export_notes`, `voice_input`, `voice_mode`, `get_config`, `update_config`, `save_file`, `tts_enabled`
+前端→后端: `chat`, `stop`, `add_note`, `get_notes`, `search_notes`, `delete_note`, `export_notes`, `voice_input`, `get_config`, `update_config`, `save_file`, `tts_enabled`, `delete_turn`
 
-后端→前端: `message_chunk`, `message_complete`, `error`, `voice_result`, `play_audio`, `avatar_state`, `voice_status`, `notes_list`, `note_saved`, `note_deleted`, `search_results`, `notes_exported`, `markdown_preview`, `file_saved`, `config`, `config_updated`
+后端→前端: `message_chunk`, `message_complete`, `error`, `voice_result`, `play_audio`, `avatar_state`, `notes_list`, `note_saved`, `note_deleted`, `search_results`, `notes_exported`, `markdown_preview`, `file_saved`, `config`, `config_updated`, `turn_deleted`
 
 ## Markdown 渲染
 
