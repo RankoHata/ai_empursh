@@ -167,7 +167,7 @@ async def stream_audio(stream_id: str, request: Request):
                     break
                 yield chunk
         except Exception as exc:
-            logger.error("TTS stream error for %s: %s", stream_id, exc)
+            logger.error("TTS stream error for %s: %s", stream_id, exc, exc_info=True)
 
     return StreamingResponse(
         generate(),

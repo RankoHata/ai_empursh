@@ -181,15 +181,19 @@ class XTTSEngine(BaseTTSEngine):
     def _generate_wav_bytes(self, text: str, speaker_wav: Optional[str], speaker: Optional[str] = None) -> bytes:
         """Generate WAV audio bytes (in-memory)."""
         import numpy as np
-        # Synthesize to numpy array
-        wav_np = self._model.tts(
-            text=text,
-            speaker_wav=speaker_wav,
-            speaker=speaker,
-            language=self._language,
-        )
-        # wav_np is a numpy array of float32 samples
-        return self._numpy_to_wav_bytes(wav_np, self.sample_rate)
+        try:
+            # Synthesize to numpy array
+            wav_np = self._model.tts(
+                text=text,
+                speaker_wav=speaker_wav,
+                speaker=speaker,
+                language=self._language,
+            )
+            # wav_np is a numpy array of float32 samples
+            return self._numpy_to_wav_bytes(wav_np, self.sample_rate)
+        except Exception:
+            logger.error("XTTS _generate_wav_bytes failed", exc_info=True)
+            raise
 
     @staticmethod
     def _numpy_to_wav_bytes(audio: "np.ndarray", sample_rate: int) -> bytes:
