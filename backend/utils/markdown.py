@@ -50,24 +50,6 @@ _HTML_RE = re.compile(r'<[^>]+>')
 _TABLE_SEP_RE = re.compile(r'^[\|\s\-:]+$', re.MULTILINE)
 _TABLE_PIPE_RE = re.compile(r'\s*\|\s*')
 
-# Keep only characters that TTS can pronounce.
-# Removes emoji, dingbats, emoticon parts, fullwidth symbols, etc.
-_TTS_CLEAN_RE = re.compile(
-    '[^'               # negated charset — keep only these:
-    '一-鿿'    # CJK unified ideographs (Chinese)
-    '぀-ゟ'    # Hiragana
-    '゠-ヿ'    # Katakana
-    'a-zA-Z0-9'        # Latin & digits
-    '，。！？；：、'     # Chinese punctuation
-    '.,!?;:\'"~'       # Basic Latin punctuation + tilde
-    '（）【】《》「」'   # Chinese brackets
-    '～—…'            # Wave dash, em dash, ellipsis
-    ' \t\n\r'         # Whitespace
-    '+\\-*/=<>'       # Math symbols
-    ']',
-    re.UNICODE,
-)
-
 # Excess blank lines: 3+ -> 2
 _EXCESS_NL_RE = re.compile(r'\n{3,}')
 
@@ -136,13 +118,10 @@ def strip_markdown(text: Optional[str]) -> str:
     # 15. Unordered lists (after HR to avoid --- conflicts)
     text = _UL_RE.sub('', text)
 
-    # 16. Remove unpronounceable characters for TTS
-    text = _TTS_CLEAN_RE.sub('', text)
-
-    # 17. Collapse 3+ blank lines -> 2
+    # 16. Collapse 3+ blank lines -> 2
     text = _EXCESS_NL_RE.sub('\n\n', text)
 
-    # 18. Trim leading/trailing whitespace
+    # 17. Trim leading/trailing whitespace
     text = text.strip()
 
     return text
