@@ -182,18 +182,20 @@ class XTTSEngine(BaseTTSEngine):
         """Generate WAV audio bytes (in-memory)."""
         import numpy as np
         try:
-            # model.tts() returns a list of numpy arrays (one per sentence)
+            # model.tts() returns a numpy array or list of arrays
             wav_chunks = self._model.tts(
                 text=text,
                 speaker_wav=speaker_wav,
                 speaker=speaker,
                 language=self._language,
             )
-            # Concatenate all chunks into one array
-            if isinstance(wav_chunks, list):
-                wav_np = np.concatenate(wav_chunks)
-            else:
+            logger.debug("tts() returned type=%s", type(wav_chunks).__name__)
+            if isinstance(wav_chunks, np.ndarray):
                 wav_np = wav_chunks
+            elif isinstance(wav_chunks, list):
+                wav_np = np.concatenate([np.atleast_1d(c) for c in wav_chunks])
+            else:
+                wav_np = np.array(wav_chunks)
             return self._numpy_to_wav_bytes(wav_np, self.sample_rate)
         except Exception:
             logger.error("XTTS _generate_wav_bytes failed", exc_info=True)
