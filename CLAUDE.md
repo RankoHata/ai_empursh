@@ -149,6 +149,7 @@ npm start
 
 | 问题 | 解决方案 |
 |------|---------|
+| uv sync 超时/连不上（HTTP_PROXY 不生效） | uv 不走系统代理环境变量。在代理软件（Clash/V2Ray）中添加规则代理 `pypi.org`、`files.pythonhosted.org`、`huggingface.co` 域名 |
 | 后端启动报 `Connection error` | 系统代理拦截了 DeepSeek API。代码已设 `NO_PROXY=api.deepseek.com`，如仍失败，在终端 `set NO_PROXY=api.deepseek.com` 后重启 |
 | npm install 失败 | 检查代理 127.0.0.1:7890 是否运行，或关闭代理直连 |
 | pip install SSL 错误 | 代理干扰了 SSL。用 `no_proxy="*" pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt` |
