@@ -76,6 +76,13 @@ class ChatSession:
         self._history.append({"role": "user", "content": content})
         self._trim()
 
+    def set_system_prompt(self, content: str) -> None:
+        """Set the system prompt as the first message. Replaces any existing."""
+        while self._history and self._history[0].get("role") == "system":
+            self._history.pop(0)
+        self._history.insert(0, {"role": "system", "content": content})
+        logger.debug("System prompt set (%d chars)", len(content))
+
     def add_system_message(self, content: str) -> None:
         """Inject a system message into history (e.g. tool-loop limit warning)."""
         logger.debug("History ← system: %s", content[:80])

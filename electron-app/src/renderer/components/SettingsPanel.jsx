@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
-export default function SettingsPanel({ config, onUpdateConfig, onLoad, compactMode, onToggleCompact }) {
+export default function SettingsPanel({
+  config, onUpdateConfig, onLoad,
+  compactMode, onToggleCompact,
+  personalities, currentPersonalityId, onSetPersonality,
+}) {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [modelName, setModelName] = useState('');
@@ -14,7 +18,7 @@ export default function SettingsPanel({ config, onUpdateConfig, onLoad, compactM
       setBaseUrl(config.model?.base_url || '');
       setModelName(config.model?.model_name || '');
       setMaxTokens(config.model?.max_tokens || 4096);
-      setApiKey(''); // always start empty for security
+      setApiKey('');
     }
   }, [config]);
 
@@ -38,6 +42,33 @@ export default function SettingsPanel({ config, onUpdateConfig, onLoad, compactM
   return (
     <div className="settings-panel">
       <h2>⚙️ 设置</h2>
+
+      <div className="settings-section">
+        <h3>助理人格</h3>
+        {personalities && personalities.length > 0 ? (
+          <div className="personality-list">
+            {personalities.map((p) => (
+              <label
+                key={p.id}
+                className={`personality-option ${p.id === currentPersonalityId ? 'active' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="personality"
+                  checked={p.id === currentPersonalityId}
+                  onChange={() => onSetPersonality && onSetPersonality(p.id)}
+                />
+                <div className="personality-info">
+                  <span className="personality-name">{p.name}</span>
+                  <span className="personality-desc">{p.description}</span>
+                </div>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="setting-hint">加载中...</p>
+        )}
+      </div>
 
       <div className="settings-section">
         <h3>模型配置</h3>
@@ -75,7 +106,7 @@ export default function SettingsPanel({ config, onUpdateConfig, onLoad, compactM
 
       <div className="settings-section">
         <h3>语音配置</h3>
-        <p className="setting-hint">STT 模型: faster-whisper base · TTS: zh-CN-XiaoxiaoNeural</p>
+        <p className="setting-hint">STT 模型: faster-whisper base · TTS: {config?.voice?.tts_engine || 'edge-tts'}</p>
       </div>
 
       <button className="btn-send" onClick={handleSave}>

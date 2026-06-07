@@ -56,6 +56,9 @@ export default function App() {
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
   const [debugMsgId, setDebugMsgId] = useState(null);
+  const [personalities, setPersonalities] = useState([]);
+  const [currentPersonalityId, setCurrentPersonalityId] = useState('default');
+
   const [compactMode, setCompactMode] = useState(() => {
     return localStorage.getItem('compactMode') === '1';
   });
@@ -193,6 +196,17 @@ export default function App() {
 
       case 'config_updated':
         break;
+
+      case 'personalities_list': {
+        setPersonalities(payload.personalities || []);
+        if (payload.current) setCurrentPersonalityId(payload.current);
+        break;
+      }
+
+      case 'personality_set': {
+        setCurrentPersonalityId(payload.id);
+        break;
+      }
 
       case 'error': {
         console.error('Server error:', payload.message);
@@ -443,6 +457,7 @@ export default function App() {
   useEffect(() => {
     if (connectionStatus === 'connected' && prevStatusRef.current !== 'connected') {
       send('list_conversations', {});
+      send('get_personalities', {});
     }
     prevStatusRef.current = connectionStatus;
   }, [connectionStatus, send]);
@@ -550,6 +565,9 @@ export default function App() {
             onLoad={handleGetConfig}
             compactMode={compactMode}
             onToggleCompact={(v) => { setCompactMode(v); localStorage.setItem('compactMode', v ? '1' : '0'); }}
+            personalities={personalities}
+            currentPersonalityId={currentPersonalityId}
+            onSetPersonality={(pid) => { send('set_personality', { personality_id: pid }); }}
           />
       )}
 

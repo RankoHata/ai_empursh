@@ -787,6 +787,50 @@ html, body, #root {
 .setting-input:focus { border-color: var(--accent); }
 .setting-hint { color: var(--text-secondary); font-size: 12px; }
 
+/* === Personality Selector === */
+.personality-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.personality-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.personality-option:hover { border-color: var(--accent); }
+.personality-option.active {
+  border-color: var(--accent);
+  background: rgba(233, 69, 96, 0.05);
+}
+.personality-option input[type="radio"] {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.personality-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.personality-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.personality-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
 /* === Live2D Pet Mode === */
 html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   background: transparent !important;

@@ -32,11 +32,13 @@ from db import notes as notes_db
 from voice import stt
 from voice import tts as voice_tts
 from agent import skills as skills_lib
+from agent.personality import load_personalities, get_default
 from tools import create_default_registry
 from utils.markdown import strip_markdown
 
-# Load skills on startup
+# Load skills and personalities on startup
 SKILLS = skills_lib.load_skills()
+PERSONALITIES = load_personalities()
 
 # Tool registry — created once at module load, shared across connections
 tool_registry = create_default_registry()
@@ -263,6 +265,7 @@ async def websocket_chat(websocket: WebSocket):
     tts_enabled = True
     current_conv_id: Optional[str] = None
     turn_index = 0
+    current_personality = get_default(PERSONALITIES)  # active personality
 
     try:
         while True:
@@ -319,6 +322,11 @@ async def websocket_chat(websocket: WebSocket):
                 )
 
                 # --- Send to model ---
+                # Inject personality system prompt at start of each turn
+                personality_prompt = current_personality.get("system_prompt", "")
+                if personality_prompt:
+                    session.set_system_prompt(personality_prompt)
+
                 session.add_user_message(augmented_text)
                 session.clear_stop()
 
@@ -598,6 +606,24 @@ async def websocket_chat(websocket: WebSocket):
                     await websocket.send_json({
                         "type": "conversation_renamed",
                         "payload": {"conversation_id": conv_id, "title": title, "ok": ok},
+                    })
+
+            elif msg_type == "get_personalities":
+                plist = [{"id": p["id"], "name": p["name"], "description": p.get("description", "")}
+                         for p in PERSONALITIES.values()]
+                await websocket.send_json({
+                    "type": "personalities_list",
+                    "payload": {"personalities": plist, "current": current_personality["id"]},
+                })
+
+            elif msg_type == "set_personality":
+                pid = payload.get("personality_id", "")
+                if pid and pid in PERSONALITIES:
+                    current_personality = PERSONALITIES[pid]
+                    logger.info("Personality set to: %s", current_personality["name"])
+                    await websocket.send_json({
+                        "type": "personality_set",
+                        "payload": {"id": pid, "name": current_personality["name"]},
                     })
 
             elif msg_type == "get_turns":
