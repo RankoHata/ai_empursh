@@ -142,6 +142,8 @@ npm start
 
 - **语音识别**首次调用会下载 faster-whisper 模型（~140MB），需要能访问 HuggingFace
 - **TTS 朗读**默认开启，可在状态栏 `朗读 ○/●` 开关控制
+- **设置**点击状态栏右侧齿轮图标 ⚙️，从右侧滑出设置抽屉面板
+- **自定义壁纸**在设置 → 显示中选择图片作为聊天背景
 - **笔记**右键聊天消息 → "保存为笔记"
 - **删除消息**右键聊天消息 → "删除"（已持久化的消息会同步删除后端记录）
 - **材料整理**在聊天中输入 `/整理` 命令
@@ -230,8 +232,8 @@ electron-app/
 │   │   └── ✏️  components/
 │   │       ├── ✏️  ChatPanel.jsx       聊天面板 + 右键菜单 + 录音
 │   │       ├── ✏️  MessageBubble.jsx   消息气泡（助手 Markdown 渲染，用户纯文本）
-│   │       ├── ✏️  StatusBar.jsx       连接状态 + TTS 开关
-│   │       ├── ✏️  TabBar.jsx          标签栏
+│   │       ├── ✏️  StatusBar.jsx       连接状态 + TTS 开关 + 设置齿轮按钮
+│   │       ├── ✏️  TabBar.jsx          标签栏（聊天、笔记）
 │   │       ├── ✏️  NotesPanel.jsx      笔记面板
 │   │       ├── ✏️  NoteCard.jsx        笔记卡片
 │   │       ├── ✏️  SettingsPanel.jsx   设置面板
@@ -284,6 +286,15 @@ electron-app/
 前端→后端: `chat`, `stop`, `add_note`, `get_notes`, `search_notes`, `delete_note`, `export_notes`, `voice_input`, `get_config`, `update_config`, `save_file`, `tts_enabled`, `delete_turn`
 
 后端→前端: `message_chunk`, `message_complete`, `error`, `voice_result`, `play_audio`, `avatar_state`, `notes_list`, `note_saved`, `note_deleted`, `search_results`, `notes_exported`, `markdown_preview`, `file_saved`, `config`, `config_updated`, `turn_deleted`
+
+## UI 设计
+
+- **暗色主题**以 Slate/Gray 为基调（`#0f1117` ~ `#21242b`），柔和护眼
+- **强调色**使用 Discord 风格蓝紫（`#7289da`），避免刺眼的红色
+- **设置面板**从标签栏移除，改为状态栏右侧齿轮按钮 ⚙️，点击后从右侧滑入抽屉式面板
+- **自定义壁纸**：在设置 → 显示中选择本地图片，作为聊天区域水印背景（8% 透明度）
+- **聊天面板**消息气泡使用圆角设计（18px），输入框为胶囊形（24px 圆角）
+- 壁纸路径存储在 localStorage `wallpaper` 键，支持 data URL
 
 ## Markdown 渲染
 

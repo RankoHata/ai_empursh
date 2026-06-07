@@ -5,6 +5,7 @@ export default function SettingsPanel({
   compactMode, onToggleCompact,
   personalities, currentPersonalityId, onSetPersonality,
   onCreatePersonality, onUpdatePersonality, onDeletePersonality,
+  wallpaper, onSetWallpaper,
 }) {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -71,9 +72,28 @@ export default function SettingsPanel({
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handlePickWallpaper = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (onSetWallpaper) onSetWallpaper(reader.result);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }, [onSetWallpaper]);
+
+  const handleRemoveWallpaper = useCallback(() => {
+    if (onSetWallpaper) onSetWallpaper('');
+  }, [onSetWallpaper]);
+
   return (
     <div className="settings-panel">
-      <h2>⚙️ 设置</h2>
 
       <div className="settings-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -168,7 +188,24 @@ export default function SettingsPanel({
 
       <div className="settings-section">
         <h3>显示</h3>
-        <label className="setting-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <label className="setting-label">聊天壁纸</label>
+        <div
+          className="wallpaper-preview"
+          style={wallpaper ? { backgroundImage: `url(${wallpaper})` } : {}}
+        >
+          {!wallpaper && '未设置壁纸'}
+        </div>
+        <div className="wallpaper-actions">
+          <button className="btn-wallpaper" onClick={handlePickWallpaper}>
+            {wallpaper ? '🖼 更换图片' : '🖼 选择图片'}
+          </button>
+          {wallpaper && (
+            <button className="btn-wallpaper btn-wallpaper-danger" onClick={handleRemoveWallpaper}>
+              ✕ 移除
+            </button>
+          )}
+        </div>
+        <label className="setting-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 12 }}>
           <input type="checkbox" checked={compactMode || false}
             onChange={(e) => onToggleCompact && onToggleCompact(e.target.checked)} />
           紧凑模式（减少空白行，信息密度更高）
