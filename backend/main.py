@@ -53,15 +53,15 @@ tool_registry = create_default_registry()
 # Logging
 # ---------------------------------------------------------------------------
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-# Quiet down noisy third-party loggers
-logging.getLogger("numba").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("openai._base_client").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+# Our modules — DEBUG for troubleshooting
+logging.getLogger("agent.chat").setLevel(logging.DEBUG)
+logging.getLogger("backend").setLevel(logging.DEBUG)
+logging.getLogger("tools").setLevel(logging.DEBUG)
+logging.getLogger("voice.tts").setLevel(logging.DEBUG)
+logging.getLogger("voice.tts_xtts").setLevel(logging.DEBUG)
 # Quiet down noisy third-party loggers
 logging.getLogger("numba").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
