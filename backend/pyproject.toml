@@ -22,16 +22,18 @@ tts-edge = [
     "edge-tts>=7.0.0",
 ]
 
-# TTS — XTTS-v2 local voice cloning (lightweight, just the XTTS model)
+# TTS — XTTS-v2 local voice cloning
+# coqui-tts provides the XTTS model (imported as 'TTS').
+# Much lighter than xtts-api-server which pulls in all language packs.
 tts-xtts = [
-    "xtts-api-server>=0.1.0",
+    "coqui-tts>=0.24.0",
 ]
 
 # Full install (everything)
 full = [
     "faster-whisper>=1.0.0",
     "edge-tts>=7.0.0",
-    "xtts-api-server>=0.1.0",
+    "coqui-tts>=0.24.0",
 ]
 
 [dependency-groups]
