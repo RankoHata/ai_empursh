@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function NoteCard({ note, selected, onSelect, onDelete }) {
+export default function NoteCard({ note, selected, onSelect, onDelete, secretMode = false }) {
   const preview =
     note.content.length > 120 ? note.content.slice(0, 120) + '...' : note.content;
 
@@ -14,7 +14,7 @@ export default function NoteCard({ note, selected, onSelect, onDelete }) {
     : '';
 
   return (
-    <div className={`note-card ${selected ? 'selected' : ''}`}>
+    <div className={`note-card ${selected ? 'selected' : ''} ${secretMode ? 'note-card-secret' : ''}`}>
       <input
         type="checkbox"
         className="note-checkbox"
@@ -22,10 +22,11 @@ export default function NoteCard({ note, selected, onSelect, onDelete }) {
         onChange={() => onSelect(note.id)}
       />
       <div className="note-body">
+        {note.title && <div className="note-title">{note.title}</div>}
         <div className="note-content">{preview}</div>
         <div className="note-meta">
           {note.tags && note.tags.map((tag) => (
-            <span key={tag} className="note-tag">#{tag}</span>
+            <span key={tag} className={`note-tag ${secretMode ? 'note-tag-secret' : ''}`}>#{tag}</span>
           ))}
           {timeStr && <span className="note-time">{timeStr}</span>}
         </div>
