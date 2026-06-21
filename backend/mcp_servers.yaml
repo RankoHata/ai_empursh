@@ -17,24 +17,20 @@
 #   headers:   (optional) Extra HTTP headers
 #   timeout:   (optional) Per-request timeout in seconds (default: 30)
 
-servers: []
-# Example entries — uncomment to use:
-#
-# - name: filesystem
-#   transport: stdio
-#   command: npx
-#   args: ["-y", "@anthropic/mcp-server-filesystem", "/path/to/allowed/dir"]
-#   timeout: 30
-#
-# - name: echo
-#   transport: stdio
-#   command: python
-#   args: ["-m", "tests.mcp_echo_server"]
-#   timeout: 10
-#
-# - name: custom-remote
-#   transport: http
-#   url: http://localhost:9000/mcp
-#   timeout: 15
-#   # headers:
-#   #   X-Api-Key: "your-key"
+servers:
+  - name: echo
+    transport: stdio
+    command: python
+    args: ["-m", "tests.mcp_echo_server"]
+    timeout: 10
+
+  # - name: filesystem
+  #   transport: stdio
+  #   command: npx
+  #   args: ["-y", "@anthropic/mcp-server-filesystem", "/path/to/allowed/dir"]
+  #   timeout: 30
+  #
+  # - name: custom-remote
+  #   transport: http
+  #   url: http://localhost:9000/mcp
+  #   timeout: 15
