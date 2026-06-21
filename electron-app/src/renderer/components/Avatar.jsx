@@ -18,8 +18,8 @@ const Avatar = React.memo(function Avatar({ state = 'idle' }) {
         mgrRef.current = mgr;
 
         // Use Vite static imports for asset URLs
-        const skelUrl = new URL('../../../assets/spine/c017_02/c017_02_00.skel', import.meta.url).href;
-        const atlasUrl = new URL('../../../assets/spine/c017_02/c017_02_00.atlas', import.meta.url).href;
+        const skelUrl = new URL('../../../assets/spine/c017_00/c017_00.skel', import.meta.url).href;
+        const atlasUrl = new URL('../../../assets/spine/c017_00/c017_00.atlas', import.meta.url).href;
 
         await mgr.init(containerRef.current, skelUrl, atlasUrl);
         if (!cancelled) setStatus('ready');

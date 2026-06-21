@@ -2,6 +2,7 @@
 // Uses official @esotericsoftware/spine-player (WebGL) instead of pixi-spine
 // to fix PMA / two-color-tint / mesh rendering issues.
 import { SpinePlayer } from '@esotericsoftware/spine-player';
+import { Skin } from '@esotericsoftware/spine-core';
 import type { AnimationState, Skeleton, TrackEntry } from '@esotericsoftware/spine-core';
 import { IAvatarModel } from './IAvatarModel';
 
@@ -27,9 +28,18 @@ export class SpineModel implements IAvatarModel {
             this.player = player;
             this._canvas = player.canvas;
 
-            // Cache animation names
+            // Cache animation names and apply all skins
             if (player.skeleton) {
               this.animationNames = player.skeleton.data.animations.map(a => a.name);
+
+              // Combine default + acc skins (accessories won't show otherwise)
+              const combined = new Skin('combined');
+              for (const skinName of ['default', 'acc']) {
+                const skin = player.skeleton.data.findSkin(skinName);
+                if (skin) combined.addSkin(skin);
+              }
+              player.skeleton.setSkin(combined);
+              player.skeleton.setSlotsToSetupPose();
             }
 
             // Style the canvas to fill the container

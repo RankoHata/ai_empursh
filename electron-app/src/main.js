@@ -88,8 +88,8 @@ function createMainWindow() {
 
 function createLive2dWindow() {
   live2dWindow = new BrowserWindow({
-    width: 280,
-    height: 450,
+    width: 400,
+    height: 650,
     x: 1200,
     y: 100,
     transparent: true,
@@ -110,25 +110,12 @@ function createLive2dWindow() {
 
   loadPage(live2dWindow, '?mode=live2d');
 
+  // screen-saver level keeps the pet above screenshot overlays
+  live2dWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  // Prevent accidental close (e.g. by screenshot overlays)
   live2dWindow.on('close', (event) => {
-    if (!app.isQuitting) {
-      event.preventDefault();
-      // Screenshot overlays etc can trigger close — restore visibility
-      if (!live2dWindow.isVisible() || live2dWindow.isMinimized()) {
-        live2dWindow.show();
-        live2dWindow.focus();
-      }
-    }
-  });
-  // Handle cases where the window is hidden externally (screenshot overlay, etc)
-  live2dWindow.on('hide', () => {
-    if (!app.isQuitting) {
-      setTimeout(() => {
-        if (live2dWindow && !live2dWindow.isDestroyed() && !live2dWindow.isVisible()) {
-          live2dWindow.show();
-        }
-      }, 500);
-    }
+    if (!app.isQuitting) event.preventDefault();
   });
 }
 
