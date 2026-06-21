@@ -61,7 +61,14 @@ export default function App() {
   const [activeConvId, setActiveConvId] = useState(null);
   const [debugMsgId, setDebugMsgId] = useState(null);
   const [personalities, setPersonalities] = useState([]);
+  const [groupedPersonalities, setGroupedPersonalities] = useState([]);
   const [currentPersonalityId, setCurrentPersonalityId] = useState(null);
+
+  const [emotionFollowEnabled, setEmotionFollowEnabled] = useState(() => {
+    return localStorage.getItem('emotionFollowEnabled') !== 'false';
+  });
+  const [userName, setUserName] = useState('');
+  const emotionTimerRef = useRef(null);
 
   const [compactMode, setCompactMode] = useState(() => {
     return localStorage.getItem('compactMode') === '1';
@@ -74,6 +81,8 @@ export default function App() {
   const sendRef = useRef(null);
   const ttsEnabledRef = useRef(ttsEnabled);
   ttsEnabledRef.current = ttsEnabled;
+  const emotionFollowRef = useRef(emotionFollowEnabled);
+  emotionFollowRef.current = emotionFollowEnabled;
   const toolToastTimerRef = useRef(null);
 
   const stopAudio = useCallback(() => {
@@ -133,6 +142,14 @@ export default function App() {
           return updated;
         });
         setIsStreaming(false);
+        // Handle emotion — drive avatar animation
+        if (emotionFollowRef.current && payload.emotion && payload.emotion !== 'idle') {
+          setAvatarState(payload.emotion);
+          clearTimeout(emotionTimerRef.current);
+          emotionTimerRef.current = setTimeout(() => {
+            setAvatarState('idle');
+          }, 3000);
+        }
         break;
       }
 
@@ -250,6 +267,7 @@ export default function App() {
 
       case 'config':
         setConfig(payload);
+        if (payload.user?.name !== undefined) setUserName(payload.user.name);
         break;
 
       case 'config_updated':
@@ -257,6 +275,7 @@ export default function App() {
 
       case 'personalities_list': {
         setPersonalities(payload.personalities || []);
+        setGroupedPersonalities(payload.grouped || []);
         if (payload.current) setCurrentPersonalityId(payload.current);
         break;
       }
@@ -535,6 +554,16 @@ export default function App() {
     send('update_config', { updates });
   }, [send]);
 
+  const handleUserNameChange = useCallback((name) => {
+    setUserName(name);
+    send('update_config', { updates: { user: { name } } });
+  }, [send]);
+
+  // Persist emotionFollowEnabled to localStorage
+  useEffect(() => {
+    localStorage.setItem('emotionFollowEnabled', String(emotionFollowEnabled));
+  }, [emotionFollowEnabled]);
+
   const handleNewConv = useCallback(() => {
     send('create_conversation', { title: '' });
   }, [send]);
@@ -683,6 +712,11 @@ export default function App() {
               onDeletePersonality={(id) => { if (confirm('确定删除此人格？')) send('delete_personality', { id }); }}
               wallpaper={wallpaper}
               onSetWallpaper={(v) => { setWallpaper(v); localStorage.setItem('wallpaper', v); }}
+              grouped={groupedPersonalities}
+              userName={userName}
+              onUserNameChange={handleUserNameChange}
+              emotionFollowEnabled={emotionFollowEnabled}
+              onSetEmotionFollow={setEmotionFollowEnabled}
             />
           </div>
         </div>
