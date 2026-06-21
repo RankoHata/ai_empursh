@@ -88,8 +88,8 @@ function createMainWindow() {
 
 function createLive2dWindow() {
   live2dWindow = new BrowserWindow({
-    width: 250,
-    height: 360,
+    width: 280,
+    height: 450,
     x: 1200,
     y: 100,
     transparent: true,
