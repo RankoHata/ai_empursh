@@ -21,11 +21,16 @@ export class SpineModel implements IAvatarModel {
 
     this.spine = new Spine(spineData);
 
-    // Center the model in the canvas
+    // Dynamic scale: fit model within canvas with 15% margin
     const bounds = this.spine.getLocalBounds();
+    const scaleX = pixiApp.app.screen.width / bounds.width;
+    const scaleY = pixiApp.app.screen.height / bounds.height;
+    const scale = Math.min(scaleX, scaleY) * 0.85;
+    this.spine.scale.set(scale);
+
+    // Center after scale
     this.spine.x = pixiApp.app.screen.width / 2;
-    this.spine.y = pixiApp.app.screen.height / 2 + bounds.height * 0.15;
-    this.spine.scale.set(0.5);
+    this.spine.y = pixiApp.app.screen.height / 2;
 
     pixiApp.app.stage.addChild(this.spine);
 
@@ -114,7 +119,7 @@ export class SpineModel implements IAvatarModel {
 
   destroy(): void {
     if (this.spine) {
-      this.spine.destroy();
+      this.spine.destroy({ children: true, texture: true });
       this.spine = null;
     }
     this.animationNames = [];
