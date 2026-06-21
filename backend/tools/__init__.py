@@ -28,6 +28,7 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._tools: dict[str, ToolDefinition] = {}
+        self._ws_sender: Optional[Callable[..., Any]] = None  # per-connection WS send_json
 
     # ------------------------------------------------------------------
     # Registration
@@ -174,6 +175,10 @@ class ToolRegistry:
 
 def create_default_registry() -> ToolRegistry:
     """Create a ToolRegistry pre-loaded with the default note tools."""
+    from tools.notes import NOTE_TOOLS
     registry = ToolRegistry()
     registry.register_all(NOTE_TOOLS)
+    # Allow secret tool executor to access the registry for WS push
+    import tools.notes as notes_module
+    notes_module._set_registry(registry)
     return registry

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import NoteCard from './NoteCard';
 
-export default function NotesPanel({ notes, onGetNotes, onSearch, onDelete, onExport }) {
+export default function NotesPanel({ notes, onGetNotes, onSearch, onDelete, onExport, onNewNote }) {
   const [query, setQuery] = useState('');
   const [tagFilter, setTagFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -74,6 +74,11 @@ export default function NotesPanel({ notes, onGetNotes, onSearch, onDelete, onEx
             <option key={tag} value={tag}>#{tag}</option>
           ))}
         </select>
+        {onNewNote && (
+          <button className="btn-new-note" onClick={onNewNote}>
+            + 新建笔记
+          </button>
+        )}
       </div>
 
       <div className="notes-list">

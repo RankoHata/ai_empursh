@@ -28,3 +28,11 @@ voice:
     language: "zh"
     # Use GPU acceleration
     use_gpu: true
+
+# ---------------------------------------------------------------------------
+# 外部工作区挂载 (External Workspace Mounting)
+# 启动时自动扫描 .md 文件并索引到对应数据库
+# scope: "public" → data.db (LLM 可见), "secret" → secret.db (LLM 不可见)
+# sync_interval: 同步间隔秒数，0 表示仅手动触发
+# ---------------------------------------------------------------------------
+workspaces: []

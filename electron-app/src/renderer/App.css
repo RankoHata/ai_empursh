@@ -1047,7 +1047,7 @@ html, body, #root {
 .markdown-save-row .modal-input { flex: 1; }
 
 /* ============================================================
-   Live2D Pet Mode
+   Pet Mode
    ============================================================ */
 html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   background: transparent !important;
@@ -1062,37 +1062,40 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   background: transparent;
   cursor: pointer;
 }
-.live2d-only-container .live2d-container {
+.live2d-only-container .avatar-container {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  pointer-events: none;
 }
-.live2d-only-container .live2d-canvas {
+.live2d-only-container .avatar-container canvas {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%) scale(1.5);
 }
 
-/* === Live2D Avatar === */
-.live2d-container {
+/* === Avatar === */
+.avatar-container {
   width: 100%;
   height: 100%;
   position: relative;
   overflow: hidden;
 }
-.live2d-sidebar .live2d-container {
+.live2d-sidebar .avatar-container {
   aspect-ratio: 2 / 3;
   max-height: 100%;
   margin: auto;
 }
-.live2d-canvas { width: 100%; height: 100%; }
-.live2d-sidebar .live2d-canvas {
+.avatar-container canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.live2d-sidebar .avatar-container canvas {
   transform: scale(1.5);
   transform-origin: center center;
 }
-.live2d-loading, .live2d-error {
+.avatar-overlay {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1456,3 +1459,154 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ============================================================
+   New Note Modal
+   ============================================================ */
+.new-note-modal {
+  width: 520px;
+  max-width: 95vw;
+}
+.new-note-modal-secret {
+  border: 1px solid var(--danger);
+}
+.modal-label {
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.modal-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  min-height: 120px;
+  transition: border-color 0.2s;
+}
+.modal-textarea:focus { border-color: var(--accent); }
+.new-note-modal-secret .modal-textarea:focus { border-color: var(--danger); }
+.modal-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.btn-send-secret {
+  background: var(--danger) !important;
+  color: #fff !important;
+}
+.btn-send-secret:hover { background: #d32f2f !important; }
+
+/* ============================================================
+   Secret Panel
+   ============================================================ */
+.secret-panel {
+  /* inherits .notes-panel */
+}
+.secret-warning-banner {
+  padding: 8px 14px;
+  background: rgba(233, 69, 96, 0.1);
+  border: 1px solid rgba(233, 69, 96, 0.3);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--danger);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.secret-warning-top {
+  margin-bottom: 12px;
+}
+
+.secret-search { border-color: rgba(233, 69, 96, 0.2); }
+.secret-search:focus { border-color: var(--danger); }
+
+.btn-new-secret-note {
+  border-color: var(--danger) !important;
+  color: var(--danger) !important;
+}
+.btn-new-secret-note:hover {
+  background: rgba(233, 69, 96, 0.1) !important;
+}
+
+.note-card-secret {
+  border-left: 3px solid rgba(233, 69, 96, 0.4) !important;
+}
+.note-tag-secret {
+  background: rgba(233, 69, 96, 0.15) !important;
+  color: var(--danger) !important;
+}
+
+.note-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+/* ============================================================
+   Secret Notification Banner
+   ============================================================ */
+.secret-notification-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  margin: 0 12px;
+  background: rgba(233, 69, 96, 0.12);
+  border: 1px solid rgba(233, 69, 96, 0.35);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--danger);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.secret-notification-banner:hover {
+  background: rgba(233, 69, 96, 0.18);
+}
+.secret-notification-close {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.secret-notification-close:hover { opacity: 1; }
+
+/* ============================================================
+   New Note Button (toolbar)
+   ============================================================ */
+.btn-new-note {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px dashed var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font);
+  white-space: nowrap;
+  transition: background 0.2s, border-style 0.2s;
+  flex-shrink: 0;
+}
+.btn-new-note:hover {
+  background: var(--accent-soft);
+  border-style: solid;
+}
