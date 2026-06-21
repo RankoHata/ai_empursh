@@ -216,7 +216,9 @@ def init_db(scope: str = "public") -> sqlite3.Connection:
 # ---------------------------------------------------------------------------
 
 def _migrate_personality_v2(conn: sqlite3.Connection) -> None:
-    """Add parent_id, version_tag, metadata columns to personalities table."""
+    """Add parent_id, version_tag, metadata columns to personalities table.
+    Also clean up old seed records that no longer have YAML files.
+    """
     migrations = [
         "ALTER TABLE personalities ADD COLUMN parent_id INTEGER",
         "ALTER TABLE personalities ADD COLUMN version_tag TEXT",
@@ -232,6 +234,12 @@ def _migrate_personality_v2(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_personalities_parent_id ON personalities(parent_id);
         CREATE INDEX IF NOT EXISTS idx_personalities_version_tag ON personalities(version_tag);
     """)
+
+    # Clean up old seed records that no longer have corresponding YAML files
+    conn.execute(
+        "DELETE FROM personalities WHERE is_seed = 1 AND name IN ('小E', '专业顾问')"
+    )
+    conn.commit()
 
 
 def _handle_old_db_rename() -> None:
