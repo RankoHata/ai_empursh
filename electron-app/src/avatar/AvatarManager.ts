@@ -40,7 +40,7 @@ export class AvatarManager {
   private startLoop(): void {
     this.lastTime = performance.now();
     const loop = (now: number): void => {
-      const delta = (now - this.lastTime) / 1000;
+      const delta = Math.min((now - this.lastTime) / 1000, 1 / 20);
       this.lastTime = now;
 
       if (this.model) {
