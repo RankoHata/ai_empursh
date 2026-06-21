@@ -1104,6 +1104,29 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
 /* ============================================================
    ToolCallCard
    ============================================================ */
+/* Thinking Indicator */
+.thinking-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.thinking-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7289da;
+  animation: thinking-breathe 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes thinking-breathe {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
 .tool-call-card {
   margin: 6px 0;
   border: 1px solid var(--border);
@@ -1176,6 +1199,39 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
 .tool-call-error-detail .tool-call-summary { color: var(--danger); }
 .tool-running .tool-call-header {
   animation: tool-pulse 1.5s ease-in-out infinite;
+}
+.tool-call-progress-bar {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 2px 0;
+}
+.tool-call-progress-fill {
+  height: 100%;
+  width: 60%;
+  background: linear-gradient(90deg, #4fc3f7, #7289da);
+  border-radius: 2px;
+  animation: progress-slide 1.5s ease-in-out infinite;
+}
+@keyframes progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.tool-call-json {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  overflow-x: auto;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre;
+  line-height: 1.5;
+  width: 100%;
 }
 @keyframes tool-pulse {
   0%, 100% { background: rgba(79, 195, 247, 0.02); }

@@ -38,6 +38,7 @@ from agent.personality import (
     get_default_personality,
 )
 from tools import create_default_registry
+from mcp import MCPManager
 from utils.markdown import strip_markdown
 
 # Load skills and seed personalities on startup
@@ -109,11 +110,19 @@ async def lifespan(app: FastAPI):
     get_openai_client()
     logger.info("OpenAI client ready")
 
+    # Initialize MCP Manager
+    mcp_manager = MCPManager.from_config()
+    await mcp_manager.connect_all()
+    app.state.mcp_manager = mcp_manager
+
     yield  # app runs here
 
     logger.info("Shutting down backend")
     if openai_client is not None:
         await openai_client.close()
+    # Disconnect MCP servers
+    if app.state.mcp_manager:
+        await app.state.mcp_manager.disconnect_all()
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +228,16 @@ async def _ws_send_safe(websocket: WebSocket, msg_type: str, payload: dict):
         pass  # WebSocket already closed, ignore
 
 
+async def _send_thinking(websocket: WebSocket, content: str):
+    """Send a thinking status message to the frontend."""
+    await _ws_send_safe(websocket, "thinking", {"content": content})
+
+
+async def _send_done(websocket: WebSocket):
+    """Signal the frontend that the current turn is fully complete."""
+    await _ws_send_safe(websocket, "done", {})
+
+
 @app.websocket("/ws")
 async def websocket_chat(websocket: WebSocket):
     await websocket.accept()
@@ -227,29 +246,32 @@ async def websocket_chat(websocket: WebSocket):
     client = get_openai_client()
 
     # Per-connection tool callbacks (capture websocket in closure)
-    async def on_tool_call(name: str, args: dict):
-        logger.debug("WS → tool_call_start: %s args=%s",
-                     name, json.dumps(args, ensure_ascii=False)[:120])
+    async def on_tool_call(name: str, args: dict, call_id: str = ""):
+        logger.debug("WS → tool_call_start: %s id=%s args=%s",
+                     name, call_id, json.dumps(args, ensure_ascii=False)[:120])
         await _ws_send_safe(websocket, "tool_call_start", {
+            "id": call_id,
             "name": name,
             "args": args,
         })
 
-    async def on_tool_result(name: str, result: dict):
+    async def on_tool_result(name: str, result: dict, call_id: str = ""):
         duration_ms = result.pop("_duration_ms", 0) if isinstance(result, dict) else 0
         success = result.get("success", True) if isinstance(result, dict) else True
         if success:
-            logger.debug("WS → tool_call_result: %s duration=%dms",
-                         name, duration_ms)
+            logger.debug("WS → tool_call_result: %s id=%s duration=%dms",
+                         name, call_id, duration_ms)
             await _ws_send_safe(websocket, "tool_call_result", {
+                "id": call_id,
                 "name": name,
                 "result": result,
                 "duration_ms": duration_ms,
             })
         else:
-            logger.debug("WS → tool_call_error: %s error=%s",
-                         name, result.get("message", ""))
+            logger.debug("WS → tool_call_error: %s id=%s error=%s",
+                         name, call_id, result.get("message", ""))
             await _ws_send_safe(websocket, "tool_call_error", {
+                "id": call_id,
                 "name": name,
                 "error": result.get("message", str(result)) if isinstance(result, dict) else str(result),
             })
@@ -261,6 +283,9 @@ async def websocket_chat(websocket: WebSocket):
         tool_registry=tool_registry,
         on_tool_call=on_tool_call,
         on_tool_result=on_tool_result,
+        mcp_manager=app.state.mcp_manager,
+        on_thinking=lambda c: _send_thinking(websocket, c),
+        on_done=lambda: _send_done(websocket),
     )
     tts_task: asyncio.Task | None = None
     tts_enabled = True
@@ -300,7 +325,11 @@ async def websocket_chat(websocket: WebSocket):
                 # --- Skill routing: match /command, load system prompt, filter tools ---
                 active_skill = None
                 augmented_text = user_text
-                active_tool_schemas = tool_registry.get_schemas()  # default: all tools
+
+                # Build tool list: built-in (possibly skill-filtered) + MCP (always available)
+                mcp_manager = app.state.mcp_manager
+                mcp_tools = mcp_manager.get_all_tools() if mcp_manager else []
+                active_tool_schemas = tool_registry.get_schemas() + mcp_tools
 
                 for command, skill in SKILLS.items():
                     if user_text.startswith(command):
@@ -308,7 +337,7 @@ async def websocket_chat(websocket: WebSocket):
                         logger.info("Skill activated: %s (command=%s)", skill["name"], command)
                         logger.debug("Skill allowed_tools: %s", skill.get("allowed_tools", []))
                         augmented_text = _build_skill_prompt(skill, user_text)
-                        active_tool_schemas = tool_registry.get_for_skill(skill)
+                        active_tool_schemas = tool_registry.get_for_skill(skill) + mcp_tools
                         logger.debug(
                             "Skill tool schemas: %s",
                             [t["function"]["name"] for t in active_tool_schemas],

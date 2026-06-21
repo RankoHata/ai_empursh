@@ -1,0 +1,40 @@
+# MCP Server configuration
+# Each server entry defines how to connect to an MCP server.
+#
+# Fields:
+#   name:      Unique identifier for this server (used in tool namespacing)
+#   transport: "stdio" (local subprocess) or "http" (remote HTTP)
+#
+# stdio transport:
+#   command:   Executable to launch
+#   args:      Command-line arguments
+#   env:       (optional) Extra environment variables
+#   cwd:       (optional) Working directory
+#   timeout:   (optional) Per-request timeout in seconds (default: 30)
+#
+# http transport:
+#   url:       HTTP endpoint for JSON-RPC requests
+#   headers:   (optional) Extra HTTP headers
+#   timeout:   (optional) Per-request timeout in seconds (default: 30)
+
+servers: []
+# Example entries — uncomment to use:
+#
+# - name: filesystem
+#   transport: stdio
+#   command: npx
+#   args: ["-y", "@anthropic/mcp-server-filesystem", "/path/to/allowed/dir"]
+#   timeout: 30
+#
+# - name: echo
+#   transport: stdio
+#   command: python
+#   args: ["-m", "tests.mcp_echo_server"]
+#   timeout: 10
+#
+# - name: custom-remote
+#   transport: http
+#   url: http://localhost:9000/mcp
+#   timeout: 15
+#   # headers:
+#   #   X-Api-Key: "your-key"

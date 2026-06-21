@@ -14,7 +14,7 @@ function compactMarkdown(text) {
 }
 
 export default function MessageBubble({ message, onToggleDebug, compactMode }) {
-  const { id, role, content, isStreaming, timestamp, toolCalls, trace, debugVisible } = message;
+  const { id, role, content, isStreaming, timestamp, toolCalls, trace, debugVisible, thinking } = message;
   const label = role === 'user' ? '你' : '助理';
 
   const bubbleClass = [
@@ -39,6 +39,14 @@ export default function MessageBubble({ message, onToggleDebug, compactMode }) {
   return (
     <div className={bubbleClass} data-msg-id={id}>
       <span className="bubble-label">{label}</span>
+
+      {/* Thinking indicator */}
+      {role === 'assistant' && thinking && (
+        <div className="thinking-indicator">
+          <span className="thinking-dot" />
+          <span className="thinking-text">{thinking}</span>
+        </div>
+      )}
 
       {/* Tool call cards (above content for assistant messages) */}
       {role === 'assistant' && toolCalls && toolCalls.length > 0 && (

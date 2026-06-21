@@ -131,6 +131,32 @@ export default function App() {
         break;
       }
 
+      case 'thinking': {
+        setMessages((prev) => {
+          const updated = [...prev];
+          // Attach thinking status to the current streaming assistant message
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant' && updated[i].isStreaming) {
+              updated[i] = { ...updated[i], thinking: payload.content };
+              break;
+            }
+          }
+          return updated;
+        });
+        break;
+      }
+
+      case 'done': {
+        // Turn is fully complete — clear streaming + thinking
+        setIsStreaming(false);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.isStreaming ? { ...m, isStreaming: false, thinking: null } : m
+          )
+        );
+        break;
+      }
+
       case 'voice_result': {
         const text = (payload.text || '').trim();
         if (text) {
@@ -220,6 +246,7 @@ export default function App() {
       }
 
       case 'tool_call_start': {
+        const callId = payload.id || `${payload.name}_${Date.now()}`;
         const toolName = payload.name || 'unknown';
         // Show floating toast
         setToolToast({ name: toolName, text: `正在调用 ${toolName}...` });
@@ -234,7 +261,7 @@ export default function App() {
               const msg = updated[i];
               const toolCalls = msg.toolCalls ? [...msg.toolCalls] : [];
               toolCalls.push({
-                id: `${toolName}_${Date.now()}`,
+                id: callId,
                 name: toolName,
                 args: payload.args || {},
                 state: 'running',
@@ -249,6 +276,7 @@ export default function App() {
       }
 
       case 'tool_call_result': {
+        const callId = payload.id || '';
         const resultName = payload.name || 'unknown';
         const durationMs = payload.duration_ms || 0;
         setToolToast({ name: resultName, text: `${resultName} 完成 · ${(durationMs / 1000).toFixed(1)}s` });
@@ -260,7 +288,8 @@ export default function App() {
             if (updated[i].role === 'assistant' && updated[i].toolCalls) {
               const msg = updated[i];
               const toolCalls = msg.toolCalls.map((tc) => {
-                if (tc.name === resultName && tc.state === 'running') {
+                const matches = callId ? tc.id === callId : (tc.name === resultName && tc.state === 'running');
+                if (matches) {
                   return {
                     ...tc,
                     state: 'completed',
@@ -280,6 +309,7 @@ export default function App() {
       }
 
       case 'tool_call_error': {
+        const callId = payload.id || '';
         const errName = payload.name || 'unknown';
         const errMsg = payload.error || 'Unknown error';
         setToolToast({ name: errName, text: `${errName} 失败: ${errMsg}` });
@@ -291,7 +321,8 @@ export default function App() {
             if (updated[i].role === 'assistant' && updated[i].toolCalls) {
               const msg = updated[i];
               const toolCalls = msg.toolCalls.map((tc) => {
-                if (tc.name === errName && tc.state === 'running') {
+                const matches = callId ? tc.id === callId : (tc.name === errName && tc.state === 'running');
+                if (matches) {
                   return { ...tc, state: 'error', error: errMsg };
                 }
                 return tc;
