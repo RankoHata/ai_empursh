@@ -8,6 +8,7 @@ conversation history and coordinates async streaming with cancellation.
 import asyncio
 import json
 import logging
+import time
 from typing import Any, AsyncGenerator, Callable, Optional, Tuple
 
 from openai import AsyncOpenAI
@@ -48,6 +49,9 @@ class ChatSession:
         on_tool_call: Optional[Callable[..., Any]] = None,
         on_tool_result: Optional[Callable[..., Any]] = None,
         max_tool_rounds: int = 10,
+        mcp_manager: Any = None,
+        on_thinking: Optional[Callable[..., Any]] = None,
+        on_done: Optional[Callable[..., Any]] = None,
     ):
         self._client = client
         self._model_name = model_name
@@ -59,12 +63,16 @@ class ChatSession:
         self._on_tool_result = on_tool_result
         self._max_tool_rounds = max_tool_rounds
         self._trace: list[dict[str, Any]] = []  # current turn trace
+        self._mcp_manager = mcp_manager
+        self._on_thinking = on_thinking
+        self._on_done = on_done
 
         logger.debug(
             "ChatSession created: model=%s max_rounds=%d max_messages=%d "
-            "max_tool_rounds=%d has_tools=%s",
+            "max_tool_rounds=%d has_tools=%s has_mcp=%s",
             model_name, max_rounds, self._max_messages,
             max_tool_rounds, tool_registry is not None,
+            mcp_manager is not None,
         )
 
     # ------------------------------------------------------------------
@@ -323,28 +331,39 @@ class ChatSession:
             )
 
     # ------------------------------------------------------------------
-    # Full tool loop (multi-turn)
+    # Full tool loop (multi-turn) — with MCP support & parallel execution
     # ------------------------------------------------------------------
 
     async def stream_with_tool_loop(
         self,
         tool_schemas: list[dict[str, Any]],
     ) -> AsyncGenerator[Tuple[str, Any], None]:
-        """High-level: stream chat, execute tools, loop until text-only response.
+        """High-level: stream chat, execute tools in parallel, loop until text-only response.
 
         Records a structured trace for debugging and persistence.
+        Supports both built-in tools (ToolRegistry) and MCP tools (MCPManager).
+        Emits thinking/done via callbacks when provided.
         """
         self._trace = []  # fresh trace for this turn
 
-        if self._tool_registry is None:
-            logger.debug("Tool loop: no registry, falling back to stream_chat")
+        has_tools = self._tool_registry is not None or self._mcp_manager is not None
+
+        if not has_tools or not tool_schemas:
+            logger.debug("Tool loop: no tools available, falling back to stream_chat")
             async for token in self.stream_chat():
                 yield ("content", token)
+            if self._on_done:
+                await self._on_done()
             return
 
         tool_round = 0
-        logger.debug("Tool loop start: max_rounds=%d tools=%d",
-                     self._max_tool_rounds, len(tool_schemas))
+        logger.debug("Tool loop start: max_rounds=%d tools=%d mcp=%s",
+                     self._max_tool_rounds, len(tool_schemas),
+                     self._mcp_manager is not None)
+
+        # Initial thinking
+        if self._on_thinking:
+            await self._on_thinking("正在分析您的请求...")
 
         while tool_round < self._max_tool_rounds:
             if self._stop_event.is_set():
@@ -352,7 +371,6 @@ class ChatSession:
                 logger.debug("Tool loop: stopped at round %d", tool_round)
                 break
 
-            had_tool_call = False
             self._trace.append({
                 "step": "api_call",
                 "round": tool_round,
@@ -361,23 +379,37 @@ class ChatSession:
             })
             logger.debug("Tool loop round %d: calling stream_chat_with_tools", tool_round)
 
+            # --- Phase 1: Stream API call, collect content + tool_calls ---
+            pending_tool_calls: list[dict[str, Any]] = []
+            # Track whether this is the first API call of the round (for thinking on subsequent calls)
+            content_yielded_this_round = False
+
             async for event_type, data in self.stream_chat_with_tools(tool_schemas):
                 if event_type == "content":
+                    if not content_yielded_this_round:
+                        content_yielded_this_round = True
                     yield ("content", data)
                 elif event_type == "tool_call":
-                    had_tool_call = True
-                    tool_name = data["name"]
-                    tool_call_id = data["id"]
+                    pending_tool_calls.append(data)
 
-                    # Parse arguments (model returns JSON string)
+            # --- Phase 2: Execute all pending tools in parallel ---
+            if pending_tool_calls:
+                # Parse all arguments before execution
+                for tc in pending_tool_calls:
                     try:
-                        tool_args = json.loads(data["arguments"])
+                        tc["_parsed_args"] = json.loads(tc["arguments"])
                     except json.JSONDecodeError:
                         logger.warning(
                             "Tool call '%s': invalid JSON args: %s",
-                            tool_name, data["arguments"][:120],
+                            tc["name"], tc["arguments"][:120],
                         )
-                        tool_args = {}
+                        tc["_parsed_args"] = {}
+
+                # Notify start for each tool (before execution)
+                for tc in pending_tool_calls:
+                    tool_name = tc["name"]
+                    tool_call_id = tc["id"]
+                    tool_args = tc["_parsed_args"]
 
                     self._trace.append({
                         "step": "tool_call",
@@ -387,49 +419,100 @@ class ChatSession:
                         "args": tool_args,
                     })
 
-                    # Notify callback
                     if self._on_tool_call:
                         try:
-                            await self._on_tool_call(tool_name, tool_args)
+                            await self._on_tool_call(tool_name, tool_args, tool_call_id)
                         except Exception as exc:
                             logger.error("on_tool_call error: %s", exc)
 
-                    # Execute
-                    result_json = await self._tool_registry.execute(tool_name, tool_args)
-                    result_dict = json.loads(result_json)
+                # Execute all tools in parallel
+                async def _exec_one(tc: dict) -> dict:
+                    """Execute a single tool and return (tc, result_dict, error_str)."""
+                    tool_name = tc["name"]
+                    tool_call_id = tc["id"]
+                    tool_args = tc["_parsed_args"]
+                    started = time.monotonic()
+                    try:
+                        result_dict = await self._execute_tool(tool_name, tool_args)
+                    except Exception as exc:
+                        elapsed_ms = int((time.monotonic() - started) * 1000)
+                        logger.error("Tool '%s' execution error: %s", tool_name, exc)
+                        return {
+                            "_tc": tc,
+                            "_success": False,
+                            "_error": str(exc),
+                            "_duration_ms": elapsed_ms,
+                        }
+                    elapsed_ms = int((time.monotonic() - started) * 1000)
+                    if isinstance(result_dict, dict):
+                        result_dict["_duration_ms"] = elapsed_ms
+                    return {
+                        "_tc": tc,
+                        "_success": True,
+                        "_result": result_dict,
+                        "_duration_ms": elapsed_ms,
+                    }
+
+                results = await asyncio.gather(
+                    *[_exec_one(tc) for tc in pending_tool_calls],
+                    return_exceptions=True,
+                )
+
+                # Process results
+                for result in results:
+                    if isinstance(result, Exception):
+                        logger.error("Tool execution exception in gather: %s", result)
+                        continue
+
+                    tc = result["_tc"]
+                    tool_name = tc["name"]
+                    tool_call_id = tc["id"]
+                    success = result["_success"]
+                    result_dict = result.get("_result", {})
+                    error_msg = result.get("_error", "")
+                    duration_ms = result.get("_duration_ms", 0)
 
                     self._trace.append({
                         "step": "tool_result",
                         "round": tool_round,
                         "name": tool_name,
                         "id": tool_call_id,
-                        "success": result_dict.get("success"),
-                        "message": result_dict.get("message", ""),
-                        "duration_ms": result_dict.pop("_duration_ms", 0),
-                        "count": result_dict.get("count", 0),
+                        "success": success,
+                        "message": result_dict.get("message", "") if isinstance(result_dict, dict) else "",
+                        "duration_ms": duration_ms,
+                        "count": result_dict.get("count", 0) if isinstance(result_dict, dict) else 0,
                     })
 
-                    # Notify callback
+                    # Notify frontend
                     if self._on_tool_result:
                         try:
-                            await self._on_tool_result(tool_name, result_dict)
+                            await self._on_tool_result(tool_name, result_dict, tool_call_id)
                         except Exception as exc:
                             logger.error("on_tool_result error: %s", exc)
 
                     # Feed result back to history
+                    result_json = json.dumps(result_dict if success else {
+                        "success": False,
+                        "message": error_msg,
+                        "error": error_msg,
+                    }, ensure_ascii=False)
                     self._history.append({
                         "role": "tool",
                         "tool_call_id": tool_call_id,
                         "content": result_json,
                     })
 
-            if not had_tool_call:
+                tool_round += 1
+                logger.debug("Tool loop: advancing to round %d", tool_round)
+
+                # Thinking before next API call
+                if self._on_thinking and tool_round < self._max_tool_rounds:
+                    await self._on_thinking("正在根据结果生成回复...")
+            else:
+                # No tool calls — done
                 self._trace.append({"step": "done", "round": tool_round})
                 logger.debug("Tool loop: no tool calls in round %d, done", tool_round)
                 break
-
-            tool_round += 1
-            logger.debug("Tool loop: advancing to round %d", tool_round)
 
         if tool_round >= self._max_tool_rounds:
             self._trace.append({"step": "max_rounds_reached", "round": tool_round})
@@ -437,6 +520,50 @@ class ChatSession:
             self.add_system_message("已达到最大工具调用次数。请基于已有信息直接回复用户，不要再调用工具。")
             async for token in self.stream_chat():
                 yield ("content", token)
+
+        # Signal completion
+        if self._on_done:
+            await self._on_done()
+
+    # ------------------------------------------------------------------
+    # Unified tool execution (built-in + MCP)
+    # ------------------------------------------------------------------
+
+    async def _execute_tool(self, name: str, args: dict) -> dict:
+        """Execute a tool by name, routing to MCP or built-in registry.
+
+        MCP tool names are prefixed with ``mcp__``.
+        Built-in tools are executed via ``self._tool_registry``.
+        """
+        from mcp.adapter import is_mcp_tool
+
+        if is_mcp_tool(name) and self._mcp_manager:
+            raw_result = await self._mcp_manager.call_tool(name, args)
+            # MCP returns arbitrary JSON; wrap it in our standard format
+            if isinstance(raw_result, dict):
+                if "success" not in raw_result:
+                    raw_result = {
+                        "success": True,
+                        "data": raw_result,
+                        "message": "MCP 工具执行完成",
+                    }
+                return raw_result
+            else:
+                return {
+                    "success": True,
+                    "data": raw_result,
+                    "message": "MCP 工具执行完成",
+                }
+        elif self._tool_registry:
+            result_json = await self._tool_registry.execute(name, args)
+            return json.loads(result_json)
+        else:
+            return {
+                "success": False,
+                "data": None,
+                "message": f"无法执行工具 '{name}'：没有可用的工具执行器",
+                "error": "no_executor",
+            }
 
     # ------------------------------------------------------------------
     # Trace & history export/import (for persistence + debugging)

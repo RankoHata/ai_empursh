@@ -195,31 +195,55 @@ def build_history_from_turns(conv_id: str) -> list[dict[str, Any]]:
     """Rebuild ChatSession-compatible message history from stored turns.
 
     This reconstructs the full OpenAI-compatible messages array:
-      user → assistant → (tool_calls → tool_results) → assistant → ...
+      user -> assistant -> (tool_calls -> tool_results) -> assistant -> ...
     """
     turns = get_turns(conv_id)
     messages: list[dict[str, Any]] = []
+
     for turn in turns:
         messages.append({"role": "user", "content": turn["user_message"]})
 
-        # Replay the trace to reconstruct intermediate messages
-        for step in turn.get("trace", []):
-            if step["step"] == "tool_calls_yielded":
-                # Assistant message with tool_calls
-                assistant_msg: dict[str, Any] = {
-                    "role": "assistant",
-                    "tool_calls": step["tool_calls"],
-                }
-                if step.get("content"):
-                    assistant_msg["content"] = step["content"]
-                messages.append(assistant_msg)
-            elif step["step"] == "tool_result_added":
-                # Tool result message
+        # Replay the trace to reconstruct intermediate tool-call messages
+        trace = turn.get("trace", [])
+        if trace:
+            # Collect tool_call/tool_result pairs per round
+            tool_calls_by_round: dict[int, list[dict]] = {}
+            tool_results: dict[str, dict] = {}  # call_id -> result info
+
+            for step in trace:
+                if step["step"] == "tool_call":
+                    round_num = step.get("round", 0)
+                    tool_calls_by_round.setdefault(round_num, []).append({
+                        "id": step["id"],
+                        "type": "function",
+                        "function": {
+                            "name": step["name"],
+                            "arguments": json.dumps(step["args"], ensure_ascii=False),
+                        },
+                    })
+                elif step["step"] == "tool_result":
+                    tool_results[step["id"]] = {
+                        "role": "tool",
+                        "tool_call_id": step["id"],
+                        "content": json.dumps({
+                            "success": step.get("success"),
+                            "message": step.get("message", ""),
+                            "count": step.get("count", 0),
+                        }, ensure_ascii=False),
+                    }
+
+            # Reconstruct in round order: assistant[tool_calls] → tool results
+            for round_num in sorted(tool_calls_by_round.keys()):
+                tc_list = tool_calls_by_round[round_num]
                 messages.append({
-                    "role": "tool",
-                    "tool_call_id": step["tool_call_id"],
-                    "content": step["content"],
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": tc_list,
                 })
+                for tc in tc_list:
+                    result = tool_results.get(tc["id"])
+                    if result:
+                        messages.append(result)
 
         # Final assistant response
         if turn["assistant_content"]:
