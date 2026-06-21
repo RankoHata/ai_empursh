@@ -39,11 +39,7 @@ from db.workspace_sync import (
 from voice import stt
 from voice import tts as voice_tts
 from agent import skills as skills_lib
-from agent.personality import (
-    ensure_seeded, list_personalities, get_personality,
-    create_personality, update_personality, delete_personality,
-    get_default_personality,
-)
+from agent.personality import get_manager, ensure_seeded
 from tools import create_default_registry
 from mcp import MCPManager
 from utils.markdown import strip_markdown
@@ -53,6 +49,9 @@ init_db_conn("public")
 init_db_conn("secret")
 SKILLS = skills_lib.load_skills()
 ensure_seeded()
+
+# Personality manager — unified entry point for all personality operations
+personality_manager = get_manager(config)
 
 # Tool registry — created once at module load, shared across connections
 tool_registry = create_default_registry()
@@ -375,7 +374,7 @@ async def websocket_chat(websocket: WebSocket):
     tts_enabled = True
     current_conv_id: Optional[str] = None
     turn_index = 0
-    current_personality = get_default_personality()  # active personality (DB record)
+    current_personality = personality_manager.get_default()  # active personality (DB record)
 
     # Per-connection: set WebSocket sender for secret tool callbacks
     tool_registry._ws_sender = websocket.send_json
@@ -445,7 +444,7 @@ async def websocket_chat(websocket: WebSocket):
 
                 # --- Send to model ---
                 # Inject personality system prompt at start of each turn
-                personality_prompt = current_personality.get("system_prompt", "")
+                personality_prompt = personality_manager.render_prompt(current_personality)
                 if personality_prompt:
                     session.set_system_prompt(personality_prompt)
 
@@ -470,33 +469,38 @@ async def websocket_chat(websocket: WebSocket):
                     })
                 else:
                     full = "".join(collected_chunks)
+                    # Extract emotion tag from response
+                    clean_content, emotion = personality_manager.extract_emotion(full)
                     partial = session.stopped()
                     trace = session.get_trace()
                     logger.debug(
-                        "Chat complete: content_chars=%d partial=%s trace_steps=%d",
-                        len(full), partial, len(trace),
+                        "Chat complete: content_chars=%d partial=%s trace_steps=%d emotion=%s",
+                        len(clean_content), partial, len(trace), emotion,
                     )
                     await websocket.send_json({
                         "type": "message_complete",
-                        "payload": {"full_content": full, "partial": partial, "trace": trace},
+                        "payload": {
+                            "full_content": clean_content,
+                            "partial": partial,
+                            "trace": trace,
+                            "emotion": emotion,
+                        },
                     })
 
-                    # Auto TTS
-                    if full.strip() and tts_enabled:
+                    # Auto TTS (use clean content without emotion tag)
+                    if clean_content.strip() and tts_enabled:
                         if tts_task and not tts_task.done():
                             tts_task.cancel()
-                        tts_task = asyncio.create_task(_synthesize_and_send(websocket, full))
+                        tts_task = asyncio.create_task(_synthesize_and_send(websocket, clean_content))
 
-                    # Auto-save conversation turn
+                    # Auto-save conversation turn (use clean content)
                     if not partial:
                         if current_conv_id is None:
-                            # Auto-create conversation on first message
                             conv = conv_db.create_conversation(title=user_text)
                             current_conv_id = conv["id"]
                             turn_index = 0
                             logger.info("Auto-created conversation %s", current_conv_id)
                         elif not conv_db.get_conversation(current_conv_id):
-                            # Current conversation was deleted — create a new one
                             logger.warning("Conversation %s no longer exists, auto-creating new one", current_conv_id)
                             conv = conv_db.create_conversation(title=user_text)
                             current_conv_id = conv["id"]
@@ -507,7 +511,7 @@ async def websocket_chat(websocket: WebSocket):
                             conv_id=current_conv_id,
                             turn_index=turn_index,
                             user_message=user_text,
-                            assistant_content=full,
+                            assistant_content=clean_content,
                             trace=trace,
                         )
                         turn_index += 1
@@ -516,12 +520,12 @@ async def websocket_chat(websocket: WebSocket):
                             turn_index - 1, current_conv_id, len(trace),
                         )
 
-                    # Skill markdown preview
+                    # Skill markdown preview (use clean content)
                     if active_skill:
                         await websocket.send_json({
                             "type": "markdown_preview",
                             "payload": {
-                                "content": full,
+                                "content": clean_content,
                                 "suggested_filename": f"{active_skill['name']}_{_timestamp()}.md",
                             },
                         })
@@ -614,6 +618,7 @@ async def websocket_chat(websocket: WebSocket):
                         "tts_voice": config.voice.get("tts_voice", "zh-CN-XiaoxiaoNeural"),
                     },
                     "workspaces": config.workspaces,
+                    "user": config.user,
                 }
                 await websocket.send_json({"type": "config", "payload": safe_cfg})
 
@@ -741,15 +746,20 @@ async def websocket_chat(websocket: WebSocket):
                     })
 
             elif msg_type == "get_personalities":
-                plist = list_personalities()
+                plist = personality_manager.list_all()
+                grouped = personality_manager.list_grouped()
                 await websocket.send_json({
                     "type": "personalities_list",
-                    "payload": {"personalities": plist, "current": current_personality.get("id")},
+                    "payload": {
+                        "personalities": plist,
+                        "grouped": grouped,
+                        "current": current_personality.get("id"),
+                    },
                 })
 
             elif msg_type == "set_personality":
                 pid = int(payload.get("personality_id", 0))
-                p = get_personality(pid)
+                p = personality_manager.get(pid)
                 if p:
                     current_personality = p
                     logger.info("Personality set to: %s", p["name"])
@@ -761,10 +771,12 @@ async def websocket_chat(websocket: WebSocket):
             elif msg_type == "create_personality":
                 name = payload.get("name", "").strip()
                 if name:
-                    p = create_personality(
+                    p = personality_manager.create(
                         name=name,
                         description=payload.get("description", ""),
                         system_prompt=payload.get("system_prompt", ""),
+                        parent_id=payload.get("parent_id"),
+                        version_tag=payload.get("version_tag"),
                     )
                     await websocket.send_json({
                         "type": "personality_created",
@@ -774,11 +786,13 @@ async def websocket_chat(websocket: WebSocket):
             elif msg_type == "update_personality":
                 pid = int(payload.get("id", 0))
                 if pid:
-                    p = update_personality(
+                    p = personality_manager.update(
                         pid=pid,
-                        name=payload.get("name", ""),
-                        description=payload.get("description", ""),
-                        system_prompt=payload.get("system_prompt", ""),
+                        name=payload.get("name"),
+                        description=payload.get("description"),
+                        system_prompt=payload.get("system_prompt"),
+                        version_tag=payload.get("version_tag"),
+                        metadata=payload.get("metadata"),
                     )
                     if p:
                         # If this was our current personality, update reference
@@ -792,7 +806,7 @@ async def websocket_chat(websocket: WebSocket):
             elif msg_type == "delete_personality":
                 pid = int(payload.get("id", 0))
                 if pid:
-                    ok = delete_personality(pid)
+                    ok = personality_manager.delete(pid)
                     await websocket.send_json({
                         "type": "personality_deleted",
                         "payload": {"id": pid, "ok": ok},
