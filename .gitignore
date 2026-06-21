@@ -20,6 +20,9 @@ Thumbs.db
 # Superpowers
 .superpowers/
 
+# Git worktrees (parallel feature branches)
+.worktrees/
+
 # Config (contains API keys)
 backend/config.yaml
 

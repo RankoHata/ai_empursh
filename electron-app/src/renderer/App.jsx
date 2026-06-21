@@ -7,7 +7,7 @@ import NotesPanel from './components/NotesPanel';
 import AvatarStatus from './components/AvatarStatus';
 import MarkdownPreview from './components/MarkdownPreview';
 import SettingsPanel from './components/SettingsPanel';
-import Live2DAvatar from './components/Live2DAvatar';
+import Avatar from './components/Avatar';
 import FeatureGuard from './components/FeatureGuard';
 import ConversationList from './components/ConversationList';
 
@@ -482,47 +482,13 @@ export default function App() {
     prevStatusRef.current = connectionStatus;
   }, [connectionStatus, send]);
 
-  // Live2D-only desktop pet mode — JS drag + click to toggle
+  // Spine pet mode — interaction handled by InteractionHandler via PixiJS events
   const isLive2DOnly = window.location.search.includes('mode=live2d');
-  const petDragRef = useRef({ startX: 0, startY: 0, moved: false });
-  const petClickRef = useRef(null);
 
   if (isLive2DOnly) {
-    const toggleMain = () => {
-      if (window.electronAPI) window.electronAPI.toggleMainWindow();
-    };
-
-    const onPetMouseDown = (e) => {
-      petDragRef.current = { startX: e.screenX, startY: e.screenY, moved: false };
-      petClickRef.current = { x: e.screenX, y: e.screenY };
-
-      const onMove = (ev) => {
-        const dx = ev.screenX - petClickRef.current.x;
-        const dy = ev.screenY - petClickRef.current.y;
-        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
-          petDragRef.current.moved = true;
-        }
-        if (window.electronAPI?.moveLive2dWindow) {
-          window.electronAPI.moveLive2dWindow(dx, dy);
-        }
-        petClickRef.current = { x: ev.screenX, y: ev.screenY };
-      };
-
-      const onUp = () => {
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-        if (!petDragRef.current.moved) {
-          toggleMain();
-        }
-      };
-
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    };
-
     return (
-      <div className="live2d-only-container" onMouseDown={onPetMouseDown}>
-        <Live2DAvatar state={avatarState} />
+      <div className="live2d-only-container">
+        <Avatar state={avatarState} />
       </div>
     );
   }
@@ -643,7 +609,7 @@ export default function App() {
       )}
       <FeatureGuard flag="showLive2D">
         <div className="live2d-sidebar">
-          <Live2DAvatar state={avatarState} />
+          <Avatar state={avatarState} />
         </div>
       </FeatureGuard>
     </div>
