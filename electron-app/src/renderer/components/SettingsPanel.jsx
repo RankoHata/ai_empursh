@@ -6,6 +6,9 @@ export default function SettingsPanel({
   personalities, currentPersonalityId, onSetPersonality,
   onCreatePersonality, onUpdatePersonality, onDeletePersonality,
   wallpaper, onSetWallpaper,
+  grouped,
+  userName, onUserNameChange,
+  emotionFollowEnabled, onSetEmotionFollow,
 }) {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -20,6 +23,13 @@ export default function SettingsPanel({
   const [editDesc, setEditDesc] = useState('');
   const [editPrompt, setEditPrompt] = useState('');
   const [isNew, setIsNew] = useState(false);
+
+  // Local user name state for debounced save
+  const [localUserName, setLocalUserName] = useState(userName || '');
+
+  useEffect(() => {
+    setLocalUserName(userName || '');
+  }, [userName]);
 
   const openNew = useCallback(() => {
     setEditId(null);
@@ -72,6 +82,12 @@ export default function SettingsPanel({
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleUserNameBlur = () => {
+    if (onUserNameChange) {
+      onUserNameChange(localUserName);
+    }
+  };
+
   const handlePickWallpaper = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -95,46 +111,63 @@ export default function SettingsPanel({
   return (
     <div className="settings-panel">
 
+      {/* ═══ 助理人格 — 下拉选择器 ═══ */}
       <div className="settings-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h3 style={{ margin: 0 }}>助理人格</h3>
           <button className="personality-new-btn" onClick={openNew}>+ 新建</button>
         </div>
-        {personalities && personalities.length > 0 ? (
-          <div className="personality-list">
-            {personalities.map((p) => (
-              <label
-                key={p.id}
-                className={`personality-option ${p.id === currentPersonalityId ? 'active' : ''}`}
-              >
-                <input
-                  type="radio"
-                  name="personality"
-                  checked={p.id === currentPersonalityId}
-                  onChange={() => onSetPersonality && onSetPersonality(p.id)}
-                />
-                <div className="personality-info" style={{ flex: 1 }}>
-                  <div className="personality-name-row">
-                    <span className="personality-name">{p.name}</span>
-                    {p.is_seed ? <span className="personality-badge">预设</span> : null}
-                    <button
-                      className="personality-edit-btn"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEdit(p); }}
-                    >✏️</button>
-                    {!p.is_seed && (
-                      <button
-                        className="personality-delete-btn"
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeletePersonality && onDeletePersonality(p.id); }}
-                      >🗑</button>
-                    )}
-                  </div>
-                  <span className="personality-desc">{p.description}</span>
-                </div>
-              </label>
-            ))}
-          </div>
+        {grouped && grouped.length > 0 ? (
+          <select
+            className="personality-select"
+            value={currentPersonalityId || ''}
+            onChange={(e) => {
+              const pid = Number(e.target.value);
+              if (pid && onSetPersonality) onSetPersonality(pid);
+            }}
+          >
+            {grouped.map((group) =>
+              group.is_single ? (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ) : (
+                <optgroup key={group.id} label={group.name}>
+                  {/* Include the root personality itself as an option */}
+                  {!group.version_tag && (
+                    <option value={group.id}>{group.name}</option>
+                  )}
+                  {group.versions.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {group.name} · {v.label}
+                    </option>
+                  ))}
+                </optgroup>
+              )
+            )}
+          </select>
         ) : (
           <p className="setting-hint">加载中...</p>
+        )}
+        {/* Inline edit / delete for currently selected personality */}
+        {currentPersonalityId && personalities && (
+          <div className="personality-actions" style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+            {(() => {
+              const cur = personalities.find(p => p.id === currentPersonalityId);
+              if (!cur) return null;
+              return (
+                <>
+                  <button className="personality-edit-btn" onClick={() => openEdit(cur)}>✏️ 编辑</button>
+                  {!cur.is_seed && (
+                    <button
+                      className="personality-delete-btn"
+                      onClick={() => onDeletePersonality && onDeletePersonality(cur.id)}
+                    >🗑 删除</button>
+                  )}
+                </>
+              );
+            })()}
+          </div>
         )}
       </div>
 
@@ -165,6 +198,7 @@ export default function SettingsPanel({
         </div>
       )}
 
+      {/* ═══ 模型配置 ═══ */}
       <div className="settings-section">
         <h3>模型配置</h3>
         <label className="setting-label">API 地址
@@ -186,6 +220,7 @@ export default function SettingsPanel({
         </label>
       </div>
 
+      {/* ═══ 显示 ═══ */}
       <div className="settings-section">
         <h3>显示</h3>
         <label className="setting-label">聊天壁纸</label>
@@ -205,13 +240,56 @@ export default function SettingsPanel({
             </button>
           )}
         </div>
-        <label className="setting-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 12 }}>
-          <input type="checkbox" checked={compactMode || false}
-            onChange={(e) => onToggleCompact && onToggleCompact(e.target.checked)} />
-          紧凑模式（减少空白行，信息密度更高）
-        </label>
+        <div className="toggle-row" style={{ marginTop: 12 }}>
+          <span>紧凑模式<span className="toggle-desc">减少空白行，信息密度更高</span></span>
+          <input
+            type="checkbox"
+            className="toggle"
+            checked={compactMode || false}
+            onChange={(e) => onToggleCompact && onToggleCompact(e.target.checked)}
+          />
+        </div>
       </div>
 
+      {/* ═══ 用户信息 ═══ */}
+      <div className="settings-section">
+        <h3>用户信息</h3>
+        <label className="setting-label">
+          你的称呼
+          <span className="setting-hint">（用于人格 System Prompt 模板变量 {'{{'} user_name {'}}'}）</span>
+          <input
+            className="setting-input"
+            type="text"
+            value={localUserName}
+            onChange={(e) => setLocalUserName(e.target.value)}
+            onBlur={handleUserNameBlur}
+            placeholder="输入你的名字或昵称..."
+          />
+        </label>
+        <p className="setting-hint" style={{ marginTop: 2 }}>留空则使用默认值 "用户"</p>
+      </div>
+
+      {/* ═══ Avatar 情绪跟随 ═══ */}
+      <div className="settings-section">
+        <h3>Avatar 情绪跟随</h3>
+        <div className="toggle-row">
+          <div className="toggle-label">
+            <span>Live2D 情绪跟随</span>
+            <div className="toggle-desc">AI 根据对话内容生成情绪，驱动 Avatar 表情动画</div>
+          </div>
+          <input
+            type="checkbox"
+            className="toggle"
+            checked={emotionFollowEnabled}
+            onChange={(e) => onSetEmotionFollow && onSetEmotionFollow(e.target.checked)}
+          />
+        </div>
+        <p className="setting-hint" style={{ marginTop: 4 }}>
+          关闭后 Avatar 始终保持默认待机状态
+        </p>
+      </div>
+
+      {/* ═══ 语音配置 ═══ */}
       <div className="settings-section">
         <h3>语音配置</h3>
         <p className="setting-hint">STT 模型: faster-whisper base · TTS: {config?.voice?.tts_engine || 'edge-tts'}</p>

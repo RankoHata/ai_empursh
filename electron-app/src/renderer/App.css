@@ -1607,6 +1607,32 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   border-style: solid;
 }
 
+/* ── 人格选择器下拉 ── */
+.personality-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  outline: none;
+}
+.personality-select:focus {
+  border-color: var(--accent);
+}
+.personality-select optgroup {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-style: normal;
+}
+.personality-select option {
+  font-weight: 400;
+  padding: 4px 0;
+}
+
 /* ── 滑动开关（统一所有 boolean toggle）── */
 .toggle {
   appearance: none;
