@@ -201,6 +201,9 @@ def init_db(scope: str = "public") -> sqlite3.Connection:
     if scope == "public":
         conn.executescript(DDL_CONVERSATIONS)
 
+        # Migration: add personality enhancement columns (v2)
+        _migrate_personality_v2(conn)
+
     if scope == "public" and _get_user_version(conn) < 1:
         _set_user_version(conn, 1)
 
@@ -211,6 +214,25 @@ def init_db(scope: str = "public") -> sqlite3.Connection:
 # ---------------------------------------------------------------------------
 # Internal: old database migration
 # ---------------------------------------------------------------------------
+
+def _migrate_personality_v2(conn: sqlite3.Connection) -> None:
+    """Add parent_id, version_tag, metadata columns to personalities table."""
+    migrations = [
+        "ALTER TABLE personalities ADD COLUMN parent_id INTEGER",
+        "ALTER TABLE personalities ADD COLUMN version_tag TEXT",
+        "ALTER TABLE personalities ADD COLUMN metadata TEXT",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+    conn.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_personalities_parent_id ON personalities(parent_id);
+        CREATE INDEX IF NOT EXISTS idx_personalities_version_tag ON personalities(version_tag);
+    """)
+
 
 def _handle_old_db_rename() -> None:
     """If notes.db exists but data.db doesn't, rename notes.db → data.db."""

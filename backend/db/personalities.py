@@ -51,9 +51,17 @@ def seed_personalities() -> int:
                 if not data or "name" not in data:
                     continue
                 conn.execute(
-                    "INSERT INTO personalities (name, description, system_prompt, is_seed) "
-                    "VALUES (?, ?, ?, 1)",
-                    (data.get("name", yaml_file.stem), data.get("description", ""), data.get("system_prompt", "")),
+                    "INSERT INTO personalities "
+                    "(name, description, system_prompt, is_seed, parent_id, version_tag, metadata) "
+                    "VALUES (?, ?, ?, 1, ?, ?, ?)",
+                    (
+                        data.get("name", yaml_file.stem),
+                        data.get("description", ""),
+                        data.get("system_prompt", ""),
+                        data.get("parent_id"),
+                        data.get("version_tag"),
+                        data.get("metadata"),
+                    ),
                 )
                 seeded += 1
                 logger.info("Seeded personality: %s", data["name"])
@@ -73,7 +81,8 @@ def list_personalities() -> list[dict[str, Any]]:
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT id, name, description, system_prompt, is_seed, created_at "
+            "SELECT id, name, description, system_prompt, is_seed, "
+            "parent_id, version_tag, metadata, created_at, updated_at "
             "FROM personalities ORDER BY is_seed DESC, id ASC"
         ).fetchall()
         return [dict(r) for r in rows]
@@ -86,7 +95,8 @@ def get_personality(pid: int) -> Optional[dict[str, Any]]:
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT id, name, description, system_prompt, is_seed, created_at "
+            "SELECT id, name, description, system_prompt, is_seed, "
+            "parent_id, version_tag, metadata, created_at, updated_at "
             "FROM personalities WHERE id = ?",
             (pid,),
         ).fetchone()
@@ -95,15 +105,23 @@ def get_personality(pid: int) -> Optional[dict[str, Any]]:
         conn.close()
 
 
-def create_personality(name: str, description: str = "", system_prompt: str = "") -> dict[str, Any]:
+def create_personality(
+    name: str,
+    description: str = "",
+    system_prompt: str = "",
+    parent_id: Optional[int] = None,
+    version_tag: Optional[str] = None,
+    metadata: Optional[str] = None,
+) -> dict[str, Any]:
     """Create a new user personality."""
     conn = get_connection()
     try:
         now = datetime.now().isoformat()
         cur = conn.execute(
-            "INSERT INTO personalities (name, description, system_prompt, is_seed, created_at, updated_at) "
-            "VALUES (?, ?, ?, 0, ?, ?)",
-            (name or "未命名", description, system_prompt, now, now),
+            "INSERT INTO personalities "
+            "(name, description, system_prompt, is_seed, parent_id, version_tag, metadata, created_at, updated_at) "
+            "VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)",
+            (name or "未命名", description, system_prompt, parent_id, version_tag, metadata, now, now),
         )
         conn.commit()
         pid = cur.lastrowid
@@ -113,19 +131,38 @@ def create_personality(name: str, description: str = "", system_prompt: str = ""
         conn.close()
 
 
-def update_personality(pid: int, name: str, description: str = "", system_prompt: str = "") -> Optional[dict[str, Any]]:
+def update_personality(
+    pid: int,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    system_prompt: Optional[str] = None,
+    version_tag: Optional[str] = None,
+    metadata: Optional[str] = None,
+) -> Optional[dict[str, Any]]:
     """Update a personality. Returns updated record or None if not found."""
     conn = get_connection()
     try:
+        existing = get_personality(pid)
+        if not existing:
+            return None
         now = datetime.now().isoformat()
         cur = conn.execute(
-            "UPDATE personalities SET name=?, description=?, system_prompt=?, updated_at=? WHERE id=?",
-            (name, description, system_prompt, now, pid),
+            "UPDATE personalities SET name=?, description=?, system_prompt=?, "
+            "version_tag=?, metadata=?, updated_at=? WHERE id=?",
+            (
+                name if name is not None else existing["name"],
+                description if description is not None else existing["description"],
+                system_prompt if system_prompt is not None else existing["system_prompt"],
+                version_tag if version_tag is not None else existing.get("version_tag"),
+                metadata if metadata is not None else existing.get("metadata"),
+                now,
+                pid,
+            ),
         )
         conn.commit()
         if cur.rowcount == 0:
             return None
-        logger.info("Updated personality %d: %s", pid, name)
+        logger.info("Updated personality %d: %s", pid, name or existing["name"])
         return get_personality(pid)
     finally:
         conn.close()
@@ -154,7 +191,8 @@ def get_default_personality() -> dict[str, Any]:
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT id, name, description, system_prompt, is_seed, created_at "
+            "SELECT id, name, description, system_prompt, is_seed, "
+            "parent_id, version_tag, metadata, created_at, updated_at "
             "FROM personalities ORDER BY is_seed DESC, id ASC LIMIT 1"
         ).fetchone()
         if row:
@@ -166,5 +204,6 @@ def get_default_personality() -> dict[str, Any]:
     return {
         "id": 0, "name": "默认助手", "description": "",
         "system_prompt": "你是用户的 AI 桌面助理。使用中文回复。",
-        "is_seed": 0, "created_at": "",
+        "is_seed": 0, "parent_id": None, "version_tag": None, "metadata": None,
+        "created_at": "", "updated_at": "",
     }

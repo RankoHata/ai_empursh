@@ -29,6 +29,11 @@ voice:
     # Use GPU acceleration
     use_gpu: true
 
+user:
+  # 用户名称，用于人格 System Prompt 模板变量 {{ user_name }}
+  # 留空则默认使用 "用户"
+  name: ""
+
 # ---------------------------------------------------------------------------
 # 外部工作区挂载 (External Workspace Mounting)
 # 启动时自动扫描 .md 文件并索引到对应数据库
