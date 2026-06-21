@@ -1,12 +1,10 @@
 // src/renderer/components/Avatar.jsx
 import React, { useRef, useEffect, useState } from 'react';
-// Vite resolves this to the correct URL in both dev and production
-import SKEL_URL from '../../../assets/spine/c017_02/c017_02_00.skel';
 
 const Avatar = React.memo(function Avatar({ state = 'idle' }) {
-  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const mgrRef = useRef(null);
-  const [status, setStatus] = useState('loading');  // 'loading' | 'ready' | 'error'
+  const [status, setStatus] = useState('loading');
 
   useEffect(() => {
     let cancelled = false;
@@ -18,7 +16,12 @@ const Avatar = React.memo(function Avatar({ state = 'idle' }) {
 
         const mgr = new AvatarManager();
         mgrRef.current = mgr;
-        await mgr.init(canvasRef.current, SKEL_URL);
+
+        // Use Vite static imports for asset URLs
+        const skelUrl = new URL('../../../assets/spine/c017_02/c017_02_00.skel', import.meta.url).href;
+        const atlasUrl = new URL('../../../assets/spine/c017_02/c017_02_00.atlas', import.meta.url).href;
+
+        await mgr.init(containerRef.current, skelUrl, atlasUrl);
         if (!cancelled) setStatus('ready');
       } catch (err) {
         console.error('[Avatar] Init failed:', err);
@@ -37,7 +40,6 @@ const Avatar = React.memo(function Avatar({ state = 'idle' }) {
     };
   }, []);
 
-  // Respond to backend avatar_state changes
   useEffect(() => {
     if (status === 'ready' && mgrRef.current) {
       mgrRef.current.setState(state);
@@ -46,7 +48,7 @@ const Avatar = React.memo(function Avatar({ state = 'idle' }) {
 
   return (
     <div className="avatar-container">
-      <canvas ref={canvasRef} width={280} height={450} />
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {status !== 'ready' && (
         <div className="avatar-overlay">
           {status === 'loading' ? '加载中...' : status}

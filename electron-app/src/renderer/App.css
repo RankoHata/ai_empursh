@@ -1068,10 +1068,11 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   overflow: hidden;
 }
 .live2d-only-container .avatar-container canvas {
+  width: 100% !important;
+  height: 100% !important;
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
 }
 
 /* === Avatar === */
@@ -1080,11 +1081,6 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   height: 100%;
   position: relative;
   overflow: hidden;
-}
-.live2d-sidebar .avatar-container {
-  aspect-ratio: 2 / 3;
-  max-height: 100%;
-  margin: auto;
 }
 .avatar-container canvas {
   width: 100%;

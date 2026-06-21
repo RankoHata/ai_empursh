@@ -1,6 +1,5 @@
 // src/avatar/InteractionHandler.ts
-import * as PIXI from 'pixi.js';
-import { Spine } from 'pixi-spine';
+import type { Skeleton } from '@esotericsoftware/spine-core';
 import { AnimationController } from './AnimationController';
 
 declare global {
@@ -14,9 +13,9 @@ declare global {
 }
 
 export class InteractionHandler {
-  private spine: Spine;
+  private canvas: HTMLCanvasElement;
   private animCtrl: AnimationController;
-  private stage: PIXI.Container | null = null;
+  private skeleton: Skeleton;
 
   private pointerDown = false;
   private isDragging = false;
@@ -26,33 +25,30 @@ export class InteractionHandler {
   private lastClickTime = 0;
   private readonly DOUBLE_CLICK_MS = 350;
 
-  // Accumulated deltas for rAF-throttled IPC
+  // rAF-throttled IPC flush
   private pendingDx = 0;
   private pendingDy = 0;
   private rafId = 0;
 
-  // Bound document handlers (for global drag tracking)
+  // Bound handlers
   private onDocMove: (e: PointerEvent) => void;
   private onDocUp: (e: PointerEvent) => void;
 
-  constructor(spine: Spine, animCtrl: AnimationController) {
-    this.spine = spine;
+  constructor(canvas: HTMLCanvasElement, animCtrl: AnimationController, skeleton: Skeleton) {
+    this.canvas = canvas;
     this.animCtrl = animCtrl;
+    this.skeleton = skeleton;
     this.onDocMove = this.handleDocMove.bind(this);
     this.onDocUp = this.handleDocUp.bind(this);
   }
 
-  attach(stage: PIXI.Container): void {
-    this.stage = stage;
-    stage.eventMode = 'static';
-    stage.cursor = 'pointer';
-    stage.on('pointerdown', this.onPointerDown, this);
-    // Right-click on the pet → open main window
-    stage.on('rightclick', this.onRightClick, this);
+  attach(): void {
+    this.canvas.style.cursor = 'pointer';
+    this.canvas.addEventListener('pointerdown', this.onPointerDown);
+    this.canvas.addEventListener('contextmenu', this.onContextMenu);
   }
 
-  // ── PIXI pointerdown ───────────────────────────────────────────────
-  private onPointerDown = (_e: PIXI.FederatedPointerEvent): void => {
+  private onPointerDown = (e: PointerEvent): void => {
     this.pointerDown = true;
     this.isDragging = false;
     this.pendingDx = 0;
@@ -62,12 +58,12 @@ export class InteractionHandler {
     document.addEventListener('pointerup', this.onDocUp);
   };
 
-  // ── Right-click on pet → open main window ──────────────────────────
-  private onRightClick = (_e: PIXI.FederatedPointerEvent): void => {
+  private onContextMenu = (e: Event): void => {
+    e.preventDefault();
     window.electronAPI?.toggleMainWindow();
   };
 
-  // ── Document move (fires globally) ─────────────────────────────────
+  // ── Document move (global) ─────────────────────────────────────────
   private handleDocMove(e: PointerEvent): void {
     // Gaze tracking
     const nx = e.clientX / window.innerWidth;
@@ -76,8 +72,6 @@ export class InteractionHandler {
 
     if (!this.pointerDown) return;
 
-    // Use movementX/Y — these are relative to the last pointermove,
-    // immune to coordinate-system mismatches between PIXI and DOM.
     const dx = e.movementX;
     const dy = e.movementY;
 
@@ -115,19 +109,15 @@ export class InteractionHandler {
     if (!this.pointerDown) return;
 
     if (!this.isDragging) {
-      // Right-click → open main window
       if (e.button === 2) {
         window.electronAPI?.toggleMainWindow();
       } else {
-        // Left-click → double-click detection
         const now = Date.now();
         if (now - this.lastClickTime < this.DOUBLE_CLICK_MS) {
-          // Double click → open main window
           window.electronAPI?.toggleMainWindow();
-          this.lastClickTime = 0; // reset to avoid triple-click triggering again
+          this.lastClickTime = 0;
         } else {
-          // Single click → pet reaction animation
-          this.animCtrl.playOneShot('action', 'idle');
+          this.animCtrl.playOneShot('action');
           this.lastClickTime = now;
         }
       }
@@ -151,11 +141,8 @@ export class InteractionHandler {
   }
 
   detach(): void {
-    if (this.stage) {
-      this.stage.off('pointerdown', this.onPointerDown, this);
-      this.stage.off('rightclick', this.onRightClick, this);
-      this.stage = null;
-    }
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown);
+    this.canvas.removeEventListener('contextmenu', this.onContextMenu);
     document.removeEventListener('pointermove', this.onDocMove);
     document.removeEventListener('pointerup', this.onDocUp);
     if (this.rafId) {

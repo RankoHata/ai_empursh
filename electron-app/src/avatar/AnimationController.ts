@@ -1,25 +1,16 @@
 // src/avatar/AnimationController.ts
-import { Spine } from 'pixi-spine';
-import { AnimTrack, TrackAnim } from './types';
+import type { AnimationState, Skeleton } from '@esotericsoftware/spine-core';
 
-const STATE_ANIM_MAP: Record<string, TrackAnim[]> = {
-  idle: [
-    { track: AnimTrack.MAIN, anim: 'idle', loop: true },
-  ],
-  speaking: [
-    { track: AnimTrack.MAIN, anim: 'idle', loop: true },
-    { track: AnimTrack.FACE, anim: 'talk_start', loop: false },
-  ],
-  action: [
-    { track: AnimTrack.MAIN, anim: 'action', loop: false },
-  ],
-  sad: [
-    { track: AnimTrack.FACE, anim: 'sad', loop: true },
-  ],
+const STATE_ANIM_MAP: Record<string, string> = {
+  idle: 'idle',
+  speaking: 'idle', // fallback — talk_start is played as one-shot via playOneShot
+  action: 'action',
+  sad: 'sad',
 };
 
 export class AnimationController {
-  private spine: Spine;
+  private skeleton: Skeleton;
+  private animState: AnimationState;
   private currentState: string = 'idle';
 
   // Gaze smoothing
@@ -28,54 +19,47 @@ export class AnimationController {
   private gazeCurrentX: number = 0;
   private gazeCurrentY: number = 0;
   private readonly GAZE_SPEED: number = 0.1;
-  private readonly GAZE_MAX_ANGLE: number = 0.15; // radians (~8.6°)
+  private readonly GAZE_MAX_ANGLE: number = 0.15;
 
-  constructor(spine: Spine) {
-    this.spine = spine;
+  constructor(skeleton: Skeleton, animState: AnimationState) {
+    this.skeleton = skeleton;
+    this.animState = animState;
   }
 
-  /** Switch animation state with multi-track support */
   setState(stateName: string): void {
     if (stateName === this.currentState) return;
-
-    const tracks = STATE_ANIM_MAP[stateName];
-    if (!tracks) return;
-
-    for (const t of tracks) {
-      this.spine.state.setAnimation(t.track, t.anim, t.loop);
-    }
-
+    const anim = STATE_ANIM_MAP[stateName];
+    if (!anim) return;
+    this.animState.setAnimation(0, anim, true);
     this.currentState = stateName;
   }
 
-  /** Play a one-shot animation, then return to the specified loop */
-  playOneShot(name: string, returnTo: string = 'idle'): void {
-    this.spine.state.setAnimation(AnimTrack.MAIN, name, false);
-    const idleEntry = this.spine.state.addAnimation(AnimTrack.MAIN, returnTo, true, 0);
-    if (idleEntry) {
-      // Mix back to idle over 0.6s — smooth, and only eats 0.6s of action's 3.6s tail.
-      idleEntry.mixDuration = 0.6;
+  /** Play a one-shot, then return to idle */
+  playOneShot(name: string): void {
+    const entry = this.animState.setAnimation(0, name, false);
+    if (entry) {
+      // Mix back to idle over 0.6s when the one-shot ends
+      entry.mixDuration = 0.6;
     }
+    this.animState.addAnimation(0, 'idle', true, 0);
   }
 
-  /** Update gaze target (normalized screen coords 0-1) */
   setGazeTarget(normalizedX: number, normalizedY: number): void {
     this.gazeTargetX = (normalizedX - 0.5) * 2 * this.GAZE_MAX_ANGLE;
     this.gazeTargetY = (normalizedY - 0.5) * 2 * this.GAZE_MAX_ANGLE;
   }
 
-  /** Per-frame gaze interpolation — call in render loop */
   updateGaze(): void {
     this.gazeCurrentX += (this.gazeTargetX - this.gazeCurrentX) * this.GAZE_SPEED;
     this.gazeCurrentY += (this.gazeTargetY - this.gazeCurrentY) * this.GAZE_SPEED;
 
-    const eyeBoneL = this.spine.skeleton.findBone('eye_l');
-    const eyeBoneR = this.spine.skeleton.findBone('eye_r');
+    const eyeBoneL = this.skeleton.findBone('eye_l');
+    const eyeBoneR = this.skeleton.findBone('eye_r');
     if (eyeBoneL) eyeBoneL.rotation = this.gazeCurrentX;
     if (eyeBoneR) eyeBoneR.rotation = this.gazeCurrentX;
   }
 
   destroy(): void {
-    // Clean up references
+    // nothing to clean up
   }
 }
