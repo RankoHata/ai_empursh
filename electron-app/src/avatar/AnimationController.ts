@@ -51,7 +51,11 @@ export class AnimationController {
   /** Play a one-shot animation, then return to the specified loop */
   playOneShot(name: string, returnTo: string = 'idle'): void {
     this.spine.state.setAnimation(AnimTrack.MAIN, name, false);
-    this.spine.state.addAnimation(AnimTrack.MAIN, returnTo, true, 0.3);
+    const idleEntry = this.spine.state.addAnimation(AnimTrack.MAIN, returnTo, true, 0);
+    if (idleEntry) {
+      // Mix back to idle over 0.6s — smooth, and only eats 0.6s of action's 3.6s tail.
+      idleEntry.mixDuration = 0.6;
+    }
   }
 
   /** Update gaze target (normalized screen coords 0-1) */

@@ -1071,7 +1071,7 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%) scale(1.5);
+  transform: translate(-50%, -50%);
 }
 
 /* === Avatar === */

@@ -11,7 +11,6 @@ export class AvatarManager {
   private animCtrl: AnimationController | null = null;
   private interaction: InteractionHandler | null = null;
   private animFrameId: number = 0;
-  private lastTime: number = 0;
 
   /**
    * Initialize the full avatar system:
@@ -38,18 +37,12 @@ export class AvatarManager {
   }
 
   private startLoop(): void {
-    this.lastTime = performance.now();
-    const loop = (now: number): void => {
-      const delta = Math.min((now - this.lastTime) / 1000, 1 / 20);
-      this.lastTime = now;
-
-      if (this.model) {
-        this.model.update(delta);
-      }
+    const loop = (): void => {
+      // Note: Spine animation updates are driven by PixiJS ticker (autoUpdate=true).
+      // This loop only handles our custom per-frame logic (gaze interpolation).
       if (this.animCtrl) {
         this.animCtrl.updateGaze();
       }
-
       this.animFrameId = requestAnimationFrame(loop);
     };
     this.animFrameId = requestAnimationFrame(loop);

@@ -16,83 +16,151 @@ declare global {
 export class InteractionHandler {
   private spine: Spine;
   private animCtrl: AnimationController;
-  private container: PIXI.Container | null = null;
+  private stage: PIXI.Container | null = null;
 
-  private clickPoint = { x: 0, y: 0 };
+  private pointerDown = false;
   private isDragging = false;
-  private readonly DRAG_THRESHOLD = 3;
+  private readonly DRAG_THRESHOLD = 5;
 
-  private boundOnMove: (e: PIXI.FederatedPointerEvent) => void;
-  private boundOnUp: (e: PIXI.FederatedPointerEvent) => void;
+  // Double-click detection
+  private lastClickTime = 0;
+  private readonly DOUBLE_CLICK_MS = 350;
+
+  // Accumulated deltas for rAF-throttled IPC
+  private pendingDx = 0;
+  private pendingDy = 0;
+  private rafId = 0;
+
+  // Bound document handlers (for global drag tracking)
+  private onDocMove: (e: PointerEvent) => void;
+  private onDocUp: (e: PointerEvent) => void;
 
   constructor(spine: Spine, animCtrl: AnimationController) {
     this.spine = spine;
     this.animCtrl = animCtrl;
-    this.boundOnMove = this.onPointerMove.bind(this);
-    this.boundOnUp = this.onPointerUp.bind(this);
+    this.onDocMove = this.handleDocMove.bind(this);
+    this.onDocUp = this.handleDocUp.bind(this);
   }
 
-  attach(container: PIXI.Container): void {
-    this.container = container;
-    container.eventMode = 'static';
-    container.cursor = 'pointer';
-    container.on('pointerdown', this.onPointerDown, this);
-    container.on('pointermove', this.boundOnMove);
-    container.on('pointerup', this.boundOnUp);
-    container.on('pointerupoutside', this.boundOnUp);
+  attach(stage: PIXI.Container): void {
+    this.stage = stage;
+    stage.eventMode = 'static';
+    stage.cursor = 'pointer';
+    stage.on('pointerdown', this.onPointerDown, this);
+    // Right-click on the pet → open main window
+    stage.on('rightclick', this.onRightClick, this);
   }
 
-  private onPointerDown = (e: PIXI.FederatedPointerEvent): void => {
-    this.clickPoint = { x: e.screenX, y: e.screenY };
+  // ── PIXI pointerdown ───────────────────────────────────────────────
+  private onPointerDown = (_e: PIXI.FederatedPointerEvent): void => {
+    this.pointerDown = true;
     this.isDragging = false;
+    this.pendingDx = 0;
+    this.pendingDy = 0;
+
+    document.addEventListener('pointermove', this.onDocMove);
+    document.addEventListener('pointerup', this.onDocUp);
   };
 
-  private onPointerMove = (e: PIXI.FederatedPointerEvent): void => {
+  // ── Right-click on pet → open main window ──────────────────────────
+  private onRightClick = (_e: PIXI.FederatedPointerEvent): void => {
+    window.electronAPI?.toggleMainWindow();
+  };
+
+  // ── Document move (fires globally) ─────────────────────────────────
+  private handleDocMove(e: PointerEvent): void {
     // Gaze tracking
-    const nx = e.globalX / window.innerWidth;
-    const ny = e.globalY / window.innerHeight;
+    const nx = e.clientX / window.innerWidth;
+    const ny = e.clientY / window.innerHeight;
     this.animCtrl.setGazeTarget(nx, ny);
 
-    // Drag detection
-    const dx = e.screenX - this.clickPoint.x;
-    const dy = e.screenY - this.clickPoint.y;
+    if (!this.pointerDown) return;
+
+    // Use movementX/Y — these are relative to the last pointermove,
+    // immune to coordinate-system mismatches between PIXI and DOM.
+    const dx = e.movementX;
+    const dy = e.movementY;
 
     if (!this.isDragging && (Math.abs(dx) > this.DRAG_THRESHOLD || Math.abs(dy) > this.DRAG_THRESHOLD)) {
       this.isDragging = true;
     }
 
     if (this.isDragging) {
-      window.electronAPI?.moveLive2dWindow(dx, dy);
-      this.clickPoint = { x: e.screenX, y: e.screenY };
+      this.pendingDx += dx;
+      this.pendingDy += dy;
+      this.scheduleFlush();
     }
-  };
+  }
 
-  private onPointerUp = (e: PIXI.FederatedPointerEvent): void => {
+  private scheduleFlush(): void {
+    if (this.rafId) return;
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = 0;
+      if (this.pendingDx !== 0 || this.pendingDy !== 0) {
+        window.electronAPI?.moveLive2dWindow(
+          Math.round(this.pendingDx),
+          Math.round(this.pendingDy),
+        );
+        this.pendingDx = 0;
+        this.pendingDy = 0;
+      }
+    });
+  }
+
+  // ── Document release ───────────────────────────────────────────────
+  private handleDocUp(e: PointerEvent): void {
+    document.removeEventListener('pointermove', this.onDocMove);
+    document.removeEventListener('pointerup', this.onDocUp);
+
+    if (!this.pointerDown) return;
+
     if (!this.isDragging) {
-      // Click — check which body part was hit
-      const local = this.spine.toLocal(new PIXI.Point(e.globalX, e.globalY));
-      const bounds = this.spine.getLocalBounds();
-      const relY = local.y - bounds.y;
-      const heightFraction = bounds.height > 0 ? relY / bounds.height : 0.5;
-
-      if (heightFraction < 0.25) {
-        // Head click → play action animation
-        this.animCtrl.playOneShot('action', 'idle');
-      } else {
-        // Body/legs click → toggle main window
+      // Right-click → open main window
+      if (e.button === 2) {
         window.electronAPI?.toggleMainWindow();
+      } else {
+        // Left-click → double-click detection
+        const now = Date.now();
+        if (now - this.lastClickTime < this.DOUBLE_CLICK_MS) {
+          // Double click → open main window
+          window.electronAPI?.toggleMainWindow();
+          this.lastClickTime = 0; // reset to avoid triple-click triggering again
+        } else {
+          // Single click → pet reaction animation
+          this.animCtrl.playOneShot('action', 'idle');
+          this.lastClickTime = now;
+        }
       }
     }
+
+    // Flush remaining drag delta
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+    }
+    if (this.isDragging && (this.pendingDx !== 0 || this.pendingDy !== 0)) {
+      window.electronAPI?.moveLive2dWindow(
+        Math.round(this.pendingDx),
+        Math.round(this.pendingDy),
+      );
+    }
+    this.pendingDx = 0;
+    this.pendingDy = 0;
+    this.pointerDown = false;
     this.isDragging = false;
-  };
+  }
 
   detach(): void {
-    if (this.container) {
-      this.container.off('pointerdown', this.onPointerDown, this);
-      this.container.off('pointermove', this.boundOnMove);
-      this.container.off('pointerup', this.boundOnUp);
-      this.container.off('pointerupoutside', this.boundOnUp);
-      this.container = null;
+    if (this.stage) {
+      this.stage.off('pointerdown', this.onPointerDown, this);
+      this.stage.off('rightclick', this.onRightClick, this);
+      this.stage = null;
+    }
+    document.removeEventListener('pointermove', this.onDocMove);
+    document.removeEventListener('pointerup', this.onDocUp);
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
     }
   }
 }

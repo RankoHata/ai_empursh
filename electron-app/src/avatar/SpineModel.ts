@@ -15,24 +15,31 @@ export class SpineModel implements IAvatarModel {
       throw new Error('PixiApp not initialized');
     }
 
-    // Register pixi-spine asset loader (side-effect import handles this in v4)
-    // Load the .skel file — pixi-spine auto-resolves the .atlas in same directory
-    const spineData = await PIXI.Assets.load(assetPath);
+    const result = await PIXI.Assets.load(assetPath);
+    this.spine = new Spine(result.spineData);
+    // Required: pixi-spine's mesh rendering accesses this.color.light/.dark.
+    // Without it, dark=null → TypeError on mesh slots → default tint=black.
+    (this.spine as any).color = { light: [1, 1, 1], dark: [1, 1, 1] };
 
-    this.spine = new Spine(spineData);
+    const cw = pixiApp.app.screen.width;
+    const ch = pixiApp.app.screen.height;
 
-    // Dynamic scale: fit model within canvas with 15% margin
-    const bounds = this.spine.getLocalBounds();
-    const scaleX = pixiApp.app.screen.width / bounds.width;
-    const scaleY = pixiApp.app.screen.height / bounds.height;
-    const scale = Math.min(scaleX, scaleY) * 0.85;
+    // Fit model to canvas using the skeleton's own reference dimensions
+    const sd = this.spine.spineData as any;
+    const scale = Math.min(cw / (sd.width || 1), ch / (sd.height || 1)) * 0.85;
     this.spine.scale.set(scale);
 
-    // Center after scale
-    this.spine.x = pixiApp.app.screen.width / 2;
-    this.spine.y = pixiApp.app.screen.height / 2;
-
+    // Add to stage first, then force the skeleton to its setup pose so
+    // getBounds() returns the real visual bounding box.
     pixiApp.app.stage.addChild(this.spine);
+    this.spine.update(0);
+
+    // Use the model's own rendered bounds to center itself in the canvas
+    const bounds = this.spine.getBounds();
+    const bx = bounds.x + bounds.width / 2;
+    const by = bounds.y + bounds.height / 2;
+    this.spine.x += cw / 2 - bx;
+    this.spine.y += ch / 2 - by;
 
     // Cache animation names from skeleton data
     if (this.spine.state.data?.skeletonData?.animations) {
@@ -112,7 +119,6 @@ export class SpineModel implements IAvatarModel {
     }
   }
 
-  /** Get the underlying PIXI.spine.Spine instance (for AnimationController direct access) */
   getSpine(): Spine | null {
     return this.spine;
   }

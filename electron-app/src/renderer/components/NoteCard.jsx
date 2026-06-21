@@ -1,8 +1,8 @@
 import React from 'react';
 
 export default function NoteCard({ note, selected, onSelect, onDelete, secretMode = false }) {
-  const preview =
-    note.content.length > 120 ? note.content.slice(0, 120) + '...' : note.content;
+  const raw = note.content_raw || '';
+  const preview = raw.length > 120 ? raw.slice(0, 120) + '...' : raw;
 
   const timeStr = note.created_at
     ? new Date(note.created_at).toLocaleString('zh-CN', {

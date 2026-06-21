@@ -1,5 +1,7 @@
 // src/renderer/components/Avatar.jsx
 import React, { useRef, useEffect, useState } from 'react';
+// Vite resolves this to the correct URL in both dev and production
+import SKEL_URL from '../../../assets/spine/c017_02/c017_02_00.skel';
 
 const Avatar = React.memo(function Avatar({ state = 'idle' }) {
   const canvasRef = useRef(null);
@@ -16,9 +18,10 @@ const Avatar = React.memo(function Avatar({ state = 'idle' }) {
 
         const mgr = new AvatarManager();
         mgrRef.current = mgr;
-        await mgr.init(canvasRef.current, 'assets/spine/c017_02/c017_02_00.skel');
+        await mgr.init(canvasRef.current, SKEL_URL);
         if (!cancelled) setStatus('ready');
       } catch (err) {
+        console.error('[Avatar] Init failed:', err);
         if (!cancelled) setStatus(`error: ${err.message}`);
       }
     }
