@@ -35,6 +35,7 @@ class AppConfig:
         self.server: dict[str, Any] = {}
         self.chat: dict[str, Any] = {}
         self.voice: dict[str, Any] = {}
+        self.workspaces: list[dict[str, Any]] = []
         self.reload()
 
     # ------------------------------------------------------------------
@@ -61,6 +62,7 @@ class AppConfig:
         self.server = data.get("server", {})
         self.chat = data.get("chat", {})
         self.voice = data.get("voice", {})
+        self.workspaces = data.get("workspaces") or []
         logger.debug("Config loaded from %s", CONFIG_PATH)
 
     def save(self, updates: dict[str, Any]) -> None:

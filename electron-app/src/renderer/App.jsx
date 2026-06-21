@@ -4,6 +4,8 @@ import StatusBar from './components/StatusBar';
 import TabBar from './components/TabBar';
 import ChatPanel from './components/ChatPanel';
 import NotesPanel from './components/NotesPanel';
+import SecretNotesPanel from './components/SecretNotesPanel';
+import NewNoteModal from './components/NewNoteModal';
 import AvatarStatus from './components/AvatarStatus';
 import MarkdownPreview from './components/MarkdownPreview';
 import SettingsPanel from './components/SettingsPanel';
@@ -46,6 +48,9 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   const [saveModal, setSaveModal] = useState(null);
   const [saveTags, setSaveTags] = useState('');
+  const [newNoteModal, setNewNoteModal] = useState(null);  // null | { secretMode: bool }
+  const [secretNotes, setSecretNotes] = useState([]);
+  const [secretNotification, setSecretNotification] = useState(null);  // { count, query }
   const [avatarState, setAvatarState] = useState('idle');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
@@ -177,6 +182,34 @@ export default function App() {
       case 'notes_exported':
         alert(`笔记已导出到:\n${payload.file_path}`);
         break;
+
+      // --- Secret notes events ---
+      case 'secret_notes_list':
+        setSecretNotes(payload.notes || []);
+        break;
+
+      case 'secret_note_saved':
+        // Refresh secret notes list
+        send('secret_get_notes', {});
+        break;
+
+      case 'secret_note_deleted':
+        setSecretNotes((prev) => prev.filter((n) => n.id !== payload.note_id));
+        break;
+
+      case 'secret_search_results': {
+        const results = payload.results || [];
+        setSecretNotes(results);
+        if (results.length > 0) {
+          setSecretNotification({
+            count: payload.count || results.length,
+            query: payload.query || '',
+          });
+          // Auto-dismiss after 8 seconds
+          setTimeout(() => setSecretNotification(null), 8000);
+        }
+        break;
+      }
 
       case 'markdown_preview':
         setMarkdownPreview({
@@ -431,6 +464,31 @@ export default function App() {
   const handleDeleteNote = useCallback((id) => send('delete_note', { note_id: id }), [send]);
   const handleExportNotes = useCallback((ids) => send('export_notes', { note_ids: ids }), [send]);
 
+  // --- Secret notes handlers ---
+  const handleGetSecretNotes = useCallback(() => send('secret_get_notes', {}), [send]);
+  const handleSearchSecretNotes = useCallback((q, t) => send('secret_search_notes', { query: q, tags: t }), [send]);
+  const handleDeleteSecretNote = useCallback((id) => send('secret_delete_note', { note_id: id }), [send]);
+
+  // --- New note modal (shared by public and secret) ---
+  const handleOpenNewNote = useCallback((secretMode = false) => {
+    setNewNoteModal({ secretMode });
+  }, []);
+
+  const handleAddNoteFromModal = useCallback((content, tags, title) => {
+    if (newNoteModal?.secretMode) {
+      send('secret_add_note', { content, tags, title });
+    } else {
+      send('add_note', { content, tags, title });
+    }
+    setNewNoteModal(null);
+    // Refresh the appropriate list
+    if (newNoteModal?.secretMode) {
+      send('secret_get_notes', {});
+    } else {
+      send('get_notes', {});
+    }
+  }, [send, newNoteModal]);
+
   const handleSaveMarkdown = useCallback((content, filename) => {
     send('save_file', { content, filename });
     setMarkdownPreview(null);
@@ -557,6 +615,19 @@ export default function App() {
             <span>{toolToast.text}</span>
           </div>
         )}
+        {/* Secret notification banner */}
+        {secretNotification && (
+          <div
+            className="secret-notification-banner"
+            onClick={() => { setActiveTab('secret'); setSecretNotification(null); }}
+          >
+            🔒 AI 查找了秘密空间，找到 {secretNotification.count} 条结果 — 点击切换到秘密标签查看
+            <button
+              className="secret-notification-close"
+              onClick={(e) => { e.stopPropagation(); setSecretNotification(null); }}
+            >✕</button>
+          </div>
+        )}
         {wallpaper && (
           <div className="wallpaper-layer" style={{ backgroundImage: `url(${wallpaper})` }} />
         )}
@@ -573,6 +644,14 @@ export default function App() {
             compactMode={compactMode}
             onDeleteMessage={handleDeleteMessage}
           />
+        ) : activeTab === 'secret' ? (
+          <SecretNotesPanel
+            notes={secretNotes}
+            onGetNotes={handleGetSecretNotes}
+            onSearch={handleSearchSecretNotes}
+            onDelete={handleDeleteSecretNote}
+            onNewNote={() => handleOpenNewNote(true)}
+          />
         ) : (
           <NotesPanel
             notes={notes}
@@ -580,6 +659,7 @@ export default function App() {
             onSearch={handleSearchNotes}
             onDelete={handleDeleteNote}
             onExport={handleExportNotes}
+            onNewNote={() => handleOpenNewNote(false)}
           />
         )}
       </div>
@@ -631,6 +711,14 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {newNoteModal && (
+        <NewNoteModal
+          secretMode={newNoteModal.secretMode}
+          onSave={handleAddNoteFromModal}
+          onCancel={() => setNewNoteModal(null)}
+        />
       )}
 
       {markdownPreview && (

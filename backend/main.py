@@ -29,6 +29,13 @@ from config import config
 from agent.chat import ChatSession
 from db import conversations as conv_db
 from db import notes as notes_db
+from db import secret_notes as secret_notes_db
+from db.init_db import init_db as init_db_conn
+from db.workspace_sync import (
+    async_sync_all_workspaces,
+    async_sync_workspace,
+    start_background_sync,
+)
 from voice import stt
 from voice import tts as voice_tts
 from agent import skills as skills_lib
@@ -40,7 +47,9 @@ from agent.personality import (
 from tools import create_default_registry
 from utils.markdown import strip_markdown
 
-# Load skills and seed personalities on startup
+# Initialize databases and seed data on startup
+init_db_conn("public")
+init_db_conn("secret")
 SKILLS = skills_lib.load_skills()
 ensure_seeded()
 
@@ -109,9 +118,30 @@ async def lifespan(app: FastAPI):
     get_openai_client()
     logger.info("OpenAI client ready")
 
+    # Initial workspace sync + start background sync task
+    sync_task: Optional[asyncio.Task] = None
+    if config.workspaces:
+        logger.info("Syncing %d workspace(s)...", len(config.workspaces))
+        result = await async_sync_all_workspaces(config.workspaces)
+        logger.info(
+            "Initial sync done: +%d ~%d -%d, errors=%d",
+            result["added"], result["updated"], result["deleted"],
+            len(result.get("errors", [])),
+        )
+        sync_task = asyncio.create_task(
+            start_background_sync(config.workspaces)
+        )
+
     yield  # app runs here
 
+    # Shutdown
     logger.info("Shutting down backend")
+    if sync_task:
+        sync_task.cancel()
+        try:
+            await sync_task
+        except asyncio.CancelledError:
+            pass
     if openai_client is not None:
         await openai_client.close()
 
@@ -219,6 +249,63 @@ async def _ws_send_safe(websocket: WebSocket, msg_type: str, payload: dict):
         pass  # WebSocket already closed, ignore
 
 
+# ---------------------------------------------------------------------------
+# Secret message handler (hard-routed, never touches LLM)
+# ---------------------------------------------------------------------------
+
+async def _handle_secret_message(
+    websocket: WebSocket,
+    msg_type: str,
+    payload: dict,
+) -> None:
+    """Route secret-prefix messages to secret_notes_db. NO LLM involvement."""
+    try:
+        if msg_type == "secret_add_note":
+            note = secret_notes_db.add_secret_note(
+                content=payload.get("content", ""),
+                tags=payload.get("tags", []),
+                title=payload.get("title", ""),
+            )
+            await _ws_send_safe(websocket, "secret_note_saved", {"note": note})
+
+        elif msg_type == "secret_get_notes":
+            notes = secret_notes_db.get_all_secret_notes()
+            await _ws_send_safe(websocket, "secret_notes_list", {"notes": notes})
+
+        elif msg_type == "secret_search_notes":
+            results = secret_notes_db.search_secret_notes(
+                query=payload.get("query", ""),
+                tags=payload.get("tags", []),
+            )
+            await _ws_send_safe(websocket, "secret_search_results", {
+                "results": results,
+                "count": len(results),
+            })
+
+        elif msg_type == "secret_delete_note":
+            note_id = payload.get("note_id")
+            if note_id is not None:
+                ok = secret_notes_db.delete_secret_note(int(note_id))
+                await _ws_send_safe(websocket, "secret_note_deleted", {
+                    "note_id": note_id,
+                    "deleted": ok,
+                })
+            else:
+                await _ws_send_safe(websocket, "error", {
+                    "message": "Missing note_id",
+                })
+
+        else:
+            await _ws_send_safe(websocket, "error", {
+                "message": f"Unknown secret message type: {msg_type}",
+            })
+    except Exception as exc:
+        logger.error("Secret handler error (%s): %s", msg_type, exc)
+        await _ws_send_safe(websocket, "error", {
+            "message": f"Secret operation failed: {exc}",
+        })
+
+
 @app.websocket("/ws")
 async def websocket_chat(websocket: WebSocket):
     await websocket.accept()
@@ -268,6 +355,9 @@ async def websocket_chat(websocket: WebSocket):
     turn_index = 0
     current_personality = get_default_personality()  # active personality (DB record)
 
+    # Per-connection: set WebSocket sender for secret tool callbacks
+    tool_registry._ws_sender = websocket.send_json
+
     try:
         while True:
             raw = await websocket.receive_text()
@@ -282,6 +372,11 @@ async def websocket_chat(websocket: WebSocket):
 
             msg_type = msg.get("type", "")
             payload = msg.get("payload", {})
+
+            # --- Gateway hard routing: secret-prefix messages NEVER touch LLM ---
+            if msg_type.startswith("secret_"):
+                await _handle_secret_message(websocket, msg_type, payload)
+                continue
 
             if msg_type == "chat":
                 user_text = payload.get("message", "").strip()
@@ -492,6 +587,7 @@ async def websocket_chat(websocket: WebSocket):
                         "tts_engine": voice_tts.get_engine_name(),
                         "tts_voice": config.voice.get("tts_voice", "zh-CN-XiaoxiaoNeural"),
                     },
+                    "workspaces": config.workspaces,
                 }
                 await websocket.send_json({"type": "config", "payload": safe_cfg})
 
@@ -710,6 +806,39 @@ async def websocket_chat(websocket: WebSocket):
                             "type": "error",
                             "payload": {"message": f"Conversation not found: {conv_id}"},
                         })
+
+            # --- Workspace sync handlers ---
+            elif msg_type == "sync_workspace":
+                ws_index = payload.get("workspace_index", 0)
+                if 0 <= ws_index < len(config.workspaces):
+                    result = await async_sync_workspace(config.workspaces[ws_index])
+                    await websocket.send_json({
+                        "type": "workspace_synced",
+                        "payload": {
+                            "workspace_index": ws_index,
+                            "added": result["added"],
+                            "updated": result["updated"],
+                            "deleted": result["deleted"],
+                            "errors": result.get("errors", []),
+                        },
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "payload": {"message": f"Invalid workspace index: {ws_index}"},
+                    })
+
+            elif msg_type == "sync_all_workspaces":
+                result = await async_sync_all_workspaces(config.workspaces)
+                await websocket.send_json({
+                    "type": "workspaces_synced",
+                    "payload": {
+                        "added": result["added"],
+                        "updated": result["updated"],
+                        "deleted": result["deleted"],
+                        "errors": result.get("errors", []),
+                    },
+                })
 
             else:
                 await websocket.send_json({
