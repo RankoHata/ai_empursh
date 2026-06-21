@@ -30,7 +30,10 @@ DEFAULT_PERSONALITY_ID = "default"
 
 def seed_personalities() -> int:
     """Import YAML personality files into DB if table is empty.
-    Also ensures at least one user-editable custom slot exists.
+
+    Supports ``parent_name`` field: a symbolic reference to another personality's
+    ``name``, resolved to ``parent_id`` after all records are inserted.
+    This allows multi-version seed files to link without knowing auto-increment IDs.
 
     Returns the number of new seed personalities imported.
     """
@@ -41,6 +44,8 @@ def seed_personalities() -> int:
 
         seeded = 0
         if was_empty:
+            # First pass: insert all records (parent_id left NULL for parent_name refs)
+            pending_links: list[tuple[int, str]] = []  # (row_id, parent_name)
             for yaml_file in sorted(SEED_DIR.glob("*.yaml")):
                 try:
                     with open(yaml_file, "r", encoding="utf-8") as fh:
@@ -50,7 +55,11 @@ def seed_personalities() -> int:
                     continue
                 if not data or "name" not in data:
                     continue
-                conn.execute(
+
+                parent_name = data.get("parent_name")
+                parent_id = data.get("parent_id")  # explicit ID takes priority
+
+                cur = conn.execute(
                     "INSERT INTO personalities "
                     "(name, description, system_prompt, is_seed, parent_id, version_tag, metadata) "
                     "VALUES (?, ?, ?, 1, ?, ?, ?)",
@@ -58,13 +67,28 @@ def seed_personalities() -> int:
                         data.get("name", yaml_file.stem),
                         data.get("description", ""),
                         data.get("system_prompt", ""),
-                        data.get("parent_id"),
+                        parent_id if not parent_name else None,
                         data.get("version_tag"),
                         data.get("metadata"),
                     ),
                 )
+                if parent_name and not parent_id:
+                    pending_links.append((cur.lastrowid, parent_name))
                 seeded += 1
                 logger.info("Seeded personality: %s", data["name"])
+
+            # Second pass: resolve parent_name → parent_id
+            for row_id, parent_name in pending_links:
+                parent_row = conn.execute(
+                    "SELECT id FROM personalities WHERE name = ?", (parent_name,)
+                ).fetchone()
+                if parent_row:
+                    conn.execute(
+                        "UPDATE personalities SET parent_id = ? WHERE id = ?",
+                        (parent_row["id"], row_id),
+                    )
+                    logger.info("  Linked '%s' (id=%d) → parent '%s' (id=%d)",
+                                parent_name, row_id, parent_name, parent_row["id"])
 
         conn.commit()
         return seeded
