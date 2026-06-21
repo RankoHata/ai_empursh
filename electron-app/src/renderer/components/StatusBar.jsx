@@ -16,12 +16,10 @@ export default function StatusBar({ status, ttsEnabled, onToggleTts, onOpenSetti
         <span>🗣️ 朗读</span>
         <input
           type="checkbox"
+          className="toggle"
           checked={ttsEnabled}
           onChange={(e) => onToggleTts(e.target.checked)}
         />
-        <span className={`toggle-switch ${ttsEnabled ? 'on' : ''}`}>
-          {ttsEnabled ? '●' : '○'}
-        </span>
       </label>
       <button className="btn-settings" onClick={onOpenSettings} title="设置">
         ⚙️
