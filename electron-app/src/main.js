@@ -109,6 +109,27 @@ function createLive2dWindow() {
   });
 
   loadPage(live2dWindow, '?mode=live2d');
+
+  live2dWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      // Screenshot overlays etc can trigger close — restore visibility
+      if (!live2dWindow.isVisible() || live2dWindow.isMinimized()) {
+        live2dWindow.show();
+        live2dWindow.focus();
+      }
+    }
+  });
+  // Handle cases where the window is hidden externally (screenshot overlay, etc)
+  live2dWindow.on('hide', () => {
+    if (!app.isQuitting) {
+      setTimeout(() => {
+        if (live2dWindow && !live2dWindow.isDestroyed() && !live2dWindow.isVisible()) {
+          live2dWindow.show();
+        }
+      }, 500);
+    }
+  });
 }
 
 // IPC: live2d window click → toggle main window

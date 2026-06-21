@@ -21,10 +21,6 @@ export class InteractionHandler {
   private isDragging = false;
   private readonly DRAG_THRESHOLD = 5;
 
-  // Double-click detection
-  private lastClickTime = 0;
-  private readonly DOUBLE_CLICK_MS = 350;
-
   // rAF-throttled IPC flush
   private pendingDx = 0;
   private pendingDy = 0;
@@ -108,20 +104,11 @@ export class InteractionHandler {
 
     if (!this.pointerDown) return;
 
-    if (!this.isDragging) {
-      if (e.button === 2) {
-        window.electronAPI?.toggleMainWindow();
-      } else {
-        const now = Date.now();
-        if (now - this.lastClickTime < this.DOUBLE_CLICK_MS) {
-          window.electronAPI?.toggleMainWindow();
-          this.lastClickTime = 0;
-        } else {
-          this.animCtrl.playOneShot('action');
-          this.lastClickTime = now;
-        }
-      }
+    if (!this.isDragging && e.button === 0) {
+      // Left click → pet reaction
+      this.animCtrl.playOneShot('action');
     }
+    // Right-click → open main window (handled by contextmenu event)
 
     // Flush remaining drag delta
     if (this.rafId) {
