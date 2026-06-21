@@ -1,6 +1,6 @@
 // src/avatar/AvatarManager.ts
 import { SpineModel } from './SpineModel';
-import { AnimationController } from './AnimationController';
+import { AnimationController, probeAnimations } from './AnimationController';
 import { InteractionHandler } from './InteractionHandler';
 
 export class AvatarManager {
@@ -12,6 +12,9 @@ export class AvatarManager {
   async init(container: HTMLElement, skelUrl: string, atlasUrl: string): Promise<void> {
     this.model = new SpineModel();
     await this.model.load(container, skelUrl, atlasUrl);
+
+    // Probe available animations and populate emotion mapping
+    probeAnimations(this.model);
 
     const skeleton = this.model.skeleton;
     const animState = this.model.animationState;
@@ -28,6 +31,10 @@ export class AvatarManager {
     }
 
     this.startLoop();
+  }
+
+  getAnimationList(): string[] {
+    return this.model?.getAnimationList() || [];
   }
 
   private startLoop(): void {
