@@ -116,12 +116,6 @@ html, body, #root {
   transition: background 0.15s;
 }
 .voice-toggle:hover { background: var(--bg-input); }
-.voice-toggle input[type="checkbox"] { display: none; }
-.toggle-switch {
-  font-size: 16px;
-  transition: color 0.2s;
-}
-.toggle-switch.on { color: var(--accent); }
 
 /* Gear icon for settings */
 .btn-settings {
