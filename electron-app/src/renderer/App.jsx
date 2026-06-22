@@ -106,6 +106,10 @@ export default function App() {
   }, []);
 
   const handleMessage = useCallback((type, payload) => {
+    // Pet window: only handle emotion relayed via IPC, skip all WS chat processing
+    if (isLive2DOnly && type !== 'config' && type !== 'personalities_list' && type !== 'personality_set' && type !== 'avatar_state') {
+      return;
+    }
     switch (type) {
       case 'message_chunk': {
         const chunk = payload.content || '';
@@ -131,14 +135,17 @@ export default function App() {
       case 'message_complete': {
         setMessages((prev) => {
           const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last && last.isStreaming) {
-            updated[updated.length - 1] = {
-              ...last,
-              content: payload.full_content || last.content,
-              isStreaming: false,
-              trace: payload.trace,
-            };
+          // Find last assistant message (may already be !isStreaming if 'done' arrived first)
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant') {
+              updated[i] = {
+                ...updated[i],
+                content: payload.full_content || updated[i].content,
+                isStreaming: false,
+                trace: payload.trace,
+              };
+              break;
+            }
           }
           return updated;
         });
