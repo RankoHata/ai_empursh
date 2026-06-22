@@ -9,4 +9,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   toggleMainWindow: () => ipcRenderer.send('toggle-main-window'),
   moveLive2dWindow: (dx, dy) => ipcRenderer.send('move-live2d-window', dx, dy),
+  // Emotion relay: main window → main process → live2d window
+  setAvatarEmotion: (emotion) => ipcRenderer.send('set-avatar-emotion', emotion),
+  onAvatarEmotion: (callback) => {
+    ipcRenderer.on('avatar-emotion', (_event, emotion) => callback(emotion));
+  },
 });

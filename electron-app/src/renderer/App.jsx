@@ -147,9 +147,12 @@ export default function App() {
         if (emotionFollowRef.current && payload.emotion && payload.emotion !== 'idle') {
           console.log('[Emotion] Setting avatar state:', payload.emotion);
           setAvatarState(payload.emotion);
+          // Relay to live2d pet window via IPC
+          window.electronAPI?.setAvatarEmotion(payload.emotion);
           clearTimeout(emotionTimerRef.current);
           emotionTimerRef.current = setTimeout(() => {
             setAvatarState('idle');
+            window.electronAPI?.setAvatarEmotion('idle');
           }, 3000);
         }
         break;
@@ -602,8 +605,19 @@ export default function App() {
     prevStatusRef.current = connectionStatus;
   }, [connectionStatus, send]);
 
-  // Spine pet mode — interaction handled by InteractionHandler via PixiJS events
+  // Spine pet mode — listen for emotion relayed via IPC from main window
   const isLive2DOnly = window.location.search.includes('mode=live2d');
+  useEffect(() => {
+    if (!isLive2DOnly) return;
+    window.electronAPI?.onAvatarEmotion((emotion) => {
+      console.log('[IPC] Pet received emotion:', emotion);
+      setAvatarState(emotion);
+      clearTimeout(emotionTimerRef.current);
+      if (emotion !== 'idle') {
+        emotionTimerRef.current = setTimeout(() => setAvatarState('idle'), 3000);
+      }
+    });
+  }, [isLive2DOnly]);
 
   if (isLive2DOnly) {
     return (

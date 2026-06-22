@@ -140,6 +140,13 @@ ipcMain.on('move-live2d-window', (_event, dx, dy) => {
   live2dWindow.setPosition(x + dx, y + dy);
 });
 
+// IPC: main window → main process → live2d window (emotion relay)
+ipcMain.on('set-avatar-emotion', (_event, emotion) => {
+  if (live2dWindow && !live2dWindow.isDestroyed()) {
+    live2dWindow.webContents.send('avatar-emotion', emotion);
+  }
+});
+
 function createTray() {
   const icon = nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAOElEQVQ4T2NkYPj/n4EBBJgYKAQMowYM/ccCkA0YNoDmYf8/A8P/fwwMDAz/GRj+M1BmAAOhCgBWuQYrnC6FJgAAAABJRU5ErkJggg=='
