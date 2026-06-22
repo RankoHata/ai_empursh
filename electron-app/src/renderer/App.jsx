@@ -135,6 +135,7 @@ export default function App() {
           if (last && last.isStreaming) {
             updated[updated.length - 1] = {
               ...last,
+              content: payload.full_content || last.content,
               isStreaming: false,
               trace: payload.trace,
             };
@@ -144,6 +145,7 @@ export default function App() {
         setIsStreaming(false);
         // Handle emotion — drive avatar animation
         if (emotionFollowRef.current && payload.emotion && payload.emotion !== 'idle') {
+          console.log('[Emotion] Setting avatar state:', payload.emotion);
           setAvatarState(payload.emotion);
           clearTimeout(emotionTimerRef.current);
           emotionTimerRef.current = setTimeout(() => {
