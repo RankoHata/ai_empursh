@@ -42,6 +42,7 @@ const Avatar = React.memo(function Avatar({ state = 'idle' }) {
 
   useEffect(() => {
     if (status === 'ready' && mgrRef.current) {
+      console.log('[Avatar] setState called with:', state);
       mgrRef.current.setState(state);
     }
   }, [state, status]);

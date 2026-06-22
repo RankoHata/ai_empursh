@@ -67,10 +67,18 @@ export class AnimationController {
   }
 
   setState(stateName: string): void {
-    if (stateName === this.currentState) return;
+    console.log('[AnimCtrl] setState:', stateName, 'current:', this.currentState);
+    if (stateName === this.currentState) {
+      console.log('[AnimCtrl]   skipped (same state)');
+      return;
+    }
     // 优先查情绪映射，再查功能状态映射
     const anim = EMOTION_ANIM_MAP[stateName] || STATE_ANIM_MAP[stateName];
-    if (!anim) return;
+    if (!anim) {
+      console.log('[AnimCtrl]   no animation mapped for:', stateName);
+      return;
+    }
+    console.log('[AnimCtrl]   playing:', anim);
     this.animState.setAnimation(0, anim, true);
     this.currentState = stateName;
   }

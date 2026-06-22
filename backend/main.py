@@ -490,7 +490,7 @@ async def websocket_chat(websocket: WebSocket):
                     clean_content, emotion = personality_manager.extract_emotion(full)
                     partial = session.stopped()
                     trace = session.get_trace()
-                    logger.debug(
+                    logger.info(
                         "Chat complete: content_chars=%d partial=%s trace_steps=%d emotion=%s",
                         len(clean_content), partial, len(trace), emotion,
                     )
