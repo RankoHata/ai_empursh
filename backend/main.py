@@ -453,7 +453,7 @@ async def websocket_chat(websocket: WebSocket):
 
                 collected_chunks: list[str] = []
                 import re as _re
-                _tag_re = _re.compile(r'\[!emotion:\s*\w+\s*!\]')
+                _tag_re = _re.compile(r'\[?!emotion:\s*\w+\s*!\]?')
                 _stream_buf: str = ""
                 try:
                     async for event_type, data in session.stream_with_tool_loop(active_tool_schemas):

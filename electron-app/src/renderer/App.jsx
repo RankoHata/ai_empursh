@@ -53,7 +53,7 @@ export default function App() {
   const [secretNotification, setSecretNotification] = useState(null);  // { count, query }
   const [avatarState, setAvatarState] = useState('idle');
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
   const [markdownPreview, setMarkdownPreview] = useState(null);
   const [config, setConfig] = useState(null);
   const [toolToast, setToolToast] = useState(null);  // { name, text }
@@ -646,8 +646,6 @@ export default function App() {
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
         <StatusBar
           status={connectionStatus}
-          ttsEnabled={ttsEnabled}
-          onToggleTts={handleToggleTts}
           onOpenSettings={() => setSettingsOpen(true)}
         />
         {isSpeaking && (
@@ -738,6 +736,8 @@ export default function App() {
               onUserNameChange={handleUserNameChange}
               emotionFollowEnabled={emotionFollowEnabled}
               onSetEmotionFollow={setEmotionFollowEnabled}
+              ttsEnabled={ttsEnabled}
+              onToggleTts={handleToggleTts}
             />
           </div>
         </div>

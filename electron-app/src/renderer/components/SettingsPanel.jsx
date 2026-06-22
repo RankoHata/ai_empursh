@@ -9,6 +9,7 @@ export default function SettingsPanel({
   grouped,
   userName, onUserNameChange,
   emotionFollowEnabled, onSetEmotionFollow,
+  ttsEnabled, onToggleTts,
 }) {
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -292,7 +293,19 @@ export default function SettingsPanel({
       {/* ═══ 语音配置 ═══ */}
       <div className="settings-section">
         <h3>语音配置</h3>
-        <p className="setting-hint">STT 模型: faster-whisper base · TTS: {config?.voice?.tts_engine || 'edge-tts'}</p>
+        <div className="toggle-row">
+          <div className="toggle-label">
+            <span>🗣️ 语音朗读</span>
+            <div className="toggle-desc">AI 回复通过语音播报</div>
+          </div>
+          <input
+            type="checkbox"
+            className="toggle"
+            checked={ttsEnabled}
+            onChange={(e) => onToggleTts && onToggleTts(e.target.checked)}
+          />
+        </div>
+        <p className="setting-hint" style={{ marginTop: 8 }}>STT: faster-whisper base · 引擎: {config?.voice?.tts_engine || 'edge-tts'}</p>
       </div>
 
       <button className="btn-send" onClick={handleSave}>

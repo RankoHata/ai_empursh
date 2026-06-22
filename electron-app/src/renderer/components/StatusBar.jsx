@@ -6,21 +6,12 @@ const STATUS_LABELS = {
   connected: '已连接',
 };
 
-export default function StatusBar({ status, ttsEnabled, onToggleTts, onOpenSettings }) {
+export default function StatusBar({ status, onOpenSettings }) {
   return (
     <div className="status-bar">
       <span className={`status-dot ${status}`} />
       <span>{STATUS_LABELS[status] || status}</span>
       <div className="status-bar-spacer" />
-      <label className="voice-toggle" title="TTS 语音朗读开关">
-        <span>🗣️ 朗读</span>
-        <input
-          type="checkbox"
-          className="toggle"
-          checked={ttsEnabled}
-          onChange={(e) => onToggleTts(e.target.checked)}
-        />
-      </label>
       <button className="btn-settings" onClick={onOpenSettings} title="设置">
         ⚙️
       </button>

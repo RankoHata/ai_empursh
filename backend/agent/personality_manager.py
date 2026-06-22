@@ -135,10 +135,11 @@ class PersonalityManager:
         Returns:
             (clean_text, emotion_label) — clean_text 不含标签
         """
-        match = re.search(r'\[!emotion:\s*(\w+)\s*!\]', response_text)
+        # Match both [!emotion:xxx!] and !emotion:xxx! (model may drop brackets)
+        match = re.search(r'\[?!emotion:\s*(\w+)\s*!\]?', response_text)
         if match:
             emotion = match.group(1)
-            clean = re.sub(r'\[!emotion:\s*\w+\s*!\]\s*', '', response_text)
+            clean = re.sub(r'\[?!emotion:\s*\w+\s*!\]?\s*', '', response_text)
             return clean, emotion
         return response_text, "idle"
 
