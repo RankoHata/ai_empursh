@@ -8,24 +8,31 @@ Electron + React 桌面应用，通过 WebSocket 与 Python FastAPI 后端通信
 ## 架构
 
 ```
-┌─────────────────────────────────┐     IPC      ┌───────────────────────────┐
-│  live2dWindow (桌面宠物)        │ ←──────────→ │  mainWindow (主应用)       │
-│  400×600, 透明, 无边框, 置顶    │  toggle/move │  1320×780, 启动时隐藏      │
-│  ?mode=live2d → 仅Live2D+拖拽  │              │  完整聊天/笔记/设置界面    │
-└─────────────────────────────────┘              └──────────┬────────────────┘
-                                                          │ WebSocket
-                                                          ▼
-                                              Python FastAPI (main.py)
-                                                ├── agent/chat.py
-                                                ├── agent/skills.py
-                                                ├── db/notes.py
-                                                ├── utils/markdown.py   (Markdown→纯文本)
-                                                └── voice/stt.py, tts.py
+┌─────────────────────────────────┐  IPC (toggle/move/emotion) ┌───────────────────────────┐
+│  live2dWindow (桌面宠物)        │ ←───────────────────────── │  mainWindow (主应用)       │
+│  400×650, 透明, 无边框, 置顶    │                             │  1320×780, 启动时隐藏      │
+│  ?mode=live2d → Spine Avatar   │  emotion 由主窗口通过 IPC   │  完整聊天/笔记/设置界面    │
+│  仅渲染Avatar，跳过chat消息处理 │  推送，不自行处理 WS 消息   └──────────┬────────────────┘
+└─────────────────────────────────┘                                       │ WebSocket
+                                                                          ▼
+                                                              Python FastAPI (main.py)
+                                                                ├── agent/chat.py
+                                                                ├── agent/skills.py
+                                                                ├── agent/personality_manager.py  (人格统一管理)
+                                                                ├── db/notes.py
+                                                                ├── db/personalities.py         (人格CRUD)
+                                                                ├── utils/template.py           (Jinja2渲染)
+                                                                ├── utils/markdown.py           (Markdown→纯文本)
+                                                                └── voice/stt.py, tts.py
 ```
 
-**双窗口**: Electron 启动时创建两个 BrowserWindow。宠物窗口始终可见（`alwaysOnTop`），主窗口默认隐藏，点击宠物弹出。
+**双窗口**: Electron 启动时创建两个 BrowserWindow。宠物窗口始终可见（`alwaysOnTop`），主窗口默认隐藏，点击宠物弹出。两个窗口各有独立 WebSocket 连接，但桌宠窗口跳过聊天消息处理（仅通过 IPC 接收 emotion 推送）。
 
-**页面路由**: 同 HTML，`?mode=live2d` 参数区分。宠物模式不加载 WebSocket/聊天，只渲染 Live2D + JS 拖拽。
+**页面路由**: 同 HTML，`?mode=live2d` 参数区分。宠物模式跳过聊天/消息处理，只渲染 Spine Avatar。
+
+**人格系统**: YAML 种子文件 → 首次启动写入 SQLite → 运行时全部走 DB。`PersonalityManager` 统一管理加载、版本聚合、Jinja2 模板渲染、情绪标签提取。支持 `parent_name` 符号引用实现多版本关联。
+
+**情绪系统**: AI 在回复末尾输出 `[!emotion:标签!]` → 后端正则剥离 → 通过 `message_complete.emotion` 下发 → 主窗口通过 IPC 推送到桌宠 → Spine AnimationController 映射为动画。
 
 ## 环境搭建（新机器从零开始）
 
@@ -346,3 +353,9 @@ system prompt 正文
 - 后台 TTS task 需可取消，WebSocket 断开时 `send_json` 会报错 → `_ws_send_safe()`
 - `git filter-branch` 清理过大文件后需 force push
 - 安装 mcp 包可能破坏 pydantic-core → 用 `--force-reinstall` 修复
+- 流式响应 + 尾标签剥离：`chat.py` 的 `finally` 中 `on_done` 会先于 main.py 的缓冲 flush 触发，导致前端创建重复消息 → 移除 `on_done` 回调，由 main.py 在 flush 后手动调 `_send_done`
+- 双窗口各有一个 React 实例 + WebSocket 连接，桌宠窗口需跳过 chat 消息处理，只通过 IPC 接收 emotion → 否则消息重复、TTS 双播
+- 情绪标签模型可能输出 `!emotion:happy!`（无方括号）→ 正则需兼容 `[` `]` 可选
+- Python 3.10 不用 `X | None` 语法，统一 `Optional[X]`
+- Spine `.skel` 动画名只能在运行时探测 → `probeAnimations()` 在 `AvatarManager.init()` 后输出到 Console
+- `parent_name` 符号引用需确保所有种子 YAML 文件名排序与 `name` 字段一致，否则关联失败
