@@ -20,30 +20,29 @@ const EMOTION_ANIM_MAP: Record<string, string> = {
   bored: 'idle',         // fallback，探测到 bored/yawn 等自动替换
 };
 
-/** 探测模型可用动画并自动匹配情绪映射 */
+/** 探测模型可用动画并自动匹配情绪映射。
+ *  优先精确匹配，其次语义匹配；多个候选时取最贴切的。 */
 export function probeAnimations(model: IAvatarModel): void {
-  const anims = model.getAnimationList();
-  console.log('[Spine] Available animations:', anims);
+  const anims = new Set(model.getAnimationList());
+  console.log('[Spine] Available animations:', Array.from(anims));
 
-  for (const anim of anims) {
-    const lower = anim.toLowerCase();
-    if (lower.includes('angry') || lower.includes('rage') || lower.includes('mad')) {
-      EMOTION_ANIM_MAP['angry'] = anim;
-    }
-    if (lower.includes('sad') || lower.includes('cry')) {
-      EMOTION_ANIM_MAP['sad'] = anim;
-    }
-    if (lower.includes('happy') || lower.includes('smile') || lower.includes('laugh') || lower.includes('cheer')) {
-      EMOTION_ANIM_MAP['happy'] = anim;
-    }
-    if (lower.includes('think') || lower.includes('shy')) {
-      EMOTION_ANIM_MAP['thinking'] = anim;
-    }
-    if (lower.includes('surprise') || lower.includes('shock') || lower.includes('wow')) {
-      EMOTION_ANIM_MAP['surprised'] = anim;
-    }
-    if (lower.includes('bored') || lower.includes('yawn') || lower.includes('sigh')) {
-      EMOTION_ANIM_MAP['bored'] = anim;
+  // 按优先级从高到低匹配（先匹配到的优先）
+  const rules: [string, string[]][] = [
+    // [emotion, preferred animations in order]
+    ['angry',     ['angry', 'rage', 'mad', 'no']],
+    ['sad',       ['sad', 'pain', 'cry']],
+    ['happy',     ['delight', 'happy', 'action', 'laugh', 'cheer', 'smile']],
+    ['thinking',  ['shy', 'shy2', 'think', 'worry']],
+    ['surprised', ['surprise', 'shock', 'delight', 'action']],
+    ['bored',     ['void', 'bored', 'yawn', 'sigh', 'no']],
+  ];
+
+  for (const [emotion, candidates] of rules) {
+    for (const name of candidates) {
+      if (anims.has(name)) {
+        EMOTION_ANIM_MAP[emotion] = name;
+        break;
+      }
     }
   }
   console.log('[Spine] Emotion mapping:', JSON.stringify(EMOTION_ANIM_MAP, null, 2));
