@@ -10,7 +10,6 @@ import base64
 import json
 import logging
 import os
-import re
 from contextlib import asynccontextmanager
 
 os.environ["http_proxy"] = "http://127.0.0.1:7890"
@@ -453,31 +452,15 @@ async def websocket_chat(websocket: WebSocket):
                 session.clear_stop()
 
                 collected_chunks: list[str] = []
-                # Buffer for stripping emotion tag from stream end
-                _tag_re = re.compile(r'\[!emotion:\s*\w+\s*!\]')
-                _stream_buf: str = ""
                 try:
                     async for event_type, data in session.stream_with_tool_loop(active_tool_schemas):
                         if event_type == "content":
                             collected_chunks.append(data)
-                            _stream_buf += data
-                            # Send safe prefix (keeping last 30 chars to catch tag)
-                            if len(_stream_buf) > 30:
-                                safe = _stream_buf[:-30]
-                                _stream_buf = _stream_buf[-30:]
-                                await websocket.send_json({
-                                    "type": "message_chunk",
-                                    "payload": {"content": safe},
-                                })
-                        # tool_call events are already pushed via on_tool_call/on_tool_result callbacks
-                    # Flush remaining buffer (strip tag if present)
-                    if _stream_buf:
-                        clean_tail = _tag_re.sub('', _stream_buf)
-                        if clean_tail:
                             await websocket.send_json({
                                 "type": "message_chunk",
-                                "payload": {"content": clean_tail},
+                                "payload": {"content": data},
                             })
+                        # tool_call events are already pushed via on_tool_call/on_tool_result callbacks
                 except Exception as exc:
                     logger.error("Stream error: %s", exc)
                     await websocket.send_json({
