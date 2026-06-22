@@ -110,6 +110,9 @@ function createLive2dWindow() {
 
   loadPage(live2dWindow, '?mode=live2d');
 
+  // Open DevTools so we can see animation list in Console
+  live2dWindow.webContents.openDevTools({ mode: 'detach' });
+
   // screen-saver level keeps the pet above screenshot overlays
   live2dWindow.setAlwaysOnTop(true, 'screen-saver');
 
