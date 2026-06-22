@@ -113,29 +113,27 @@ export default function App() {
     switch (type) {
       case 'message_chunk': {
         const chunk = payload.content || '';
-        if (!isStreamingRef.current) {
-          setMessages((prev) => [
-            ...prev,
-            { id: nextId++, role: 'assistant', content: chunk, isStreaming: true, timestamp: Date.now() },
-          ]);
-          setIsStreaming(true);
-        } else {
-          setMessages((prev) => {
-            const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last && last.isStreaming) {
-              updated[updated.length - 1] = { ...last, content: last.content + chunk };
+        setMessages((prev) => {
+          const updated = [...prev];
+          // Append to last assistant message if it's still streaming
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant' && updated[i].isStreaming) {
+              updated[i] = { ...updated[i], content: updated[i].content + chunk };
+              return updated;
             }
-            return updated;
-          });
-        }
+          }
+          // No streaming assistant message — create one
+          updated.push({ id: nextId++, role: 'assistant', content: chunk, isStreaming: true, timestamp: Date.now() });
+          return updated;
+        });
+        setIsStreaming(true);
         break;
       }
 
       case 'message_complete': {
         setMessages((prev) => {
           const updated = [...prev];
-          // Find last assistant message (may already be !isStreaming if 'done' arrived first)
+          // Find last assistant message and finalize it
           for (let i = updated.length - 1; i >= 0; i--) {
             if (updated[i].role === 'assistant') {
               updated[i] = {
