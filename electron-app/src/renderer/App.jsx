@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import useWebSocket from './hooks/useWebSocket';
-import StatusBar from './components/StatusBar';
-import TabBar from './components/TabBar';
+import BottomNavBar from './components/BottomNavBar';
+import DisconnectedBanner from './components/DisconnectedBanner';
+import ConversationList from './components/ConversationList';
 import ChatPanel from './components/ChatPanel';
 import NotesPanel from './components/NotesPanel';
 import SecretNotesPanel from './components/SecretNotesPanel';
@@ -11,7 +12,6 @@ import MarkdownPreview from './components/MarkdownPreview';
 import SettingsPanel from './components/SettingsPanel';
 import Avatar from './components/Avatar';
 import FeatureGuard from './components/FeatureGuard';
-import ConversationList from './components/ConversationList';
 
 let nextId = 1;
 
@@ -44,7 +44,7 @@ function buildToolCallsFromTrace(trace) {
 export default function App() {
   const [messages, setMessages] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [activeTab, setActiveTab] = useState('chat');
+  const [activePage, setActivePage] = useState('chat');
   const [notes, setNotes] = useState([]);
   const [saveModal, setSaveModal] = useState(null);
   const [saveTags, setSaveTags] = useState('');
@@ -77,10 +77,51 @@ export default function App() {
   const [wallpaper, setWallpaper] = useState(() => {
     return localStorage.getItem('wallpaper') || '';
   });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(false);
   const audioRef = useRef(null);
   const sendRef = useRef(null);
   const ttsEnabledRef = useRef(ttsEnabled);
   ttsEnabledRef.current = ttsEnabled;
+  // Spine pet mode detection
+  const isLive2DOnly = window.location.search.includes('mode=live2d');
+  // Keyboard shortcuts for navigation
+  useEffect(() => {
+    if (isLive2DOnly) return;
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+      if (e.ctrlKey && !e.altKey && !e.metaKey) {
+        switch (e.key) {
+          case 'b': case 'B':
+            e.preventDefault();
+            setSidebarCollapsed(prev => !prev);
+            break;
+          case 'd': case 'D':
+            e.preventDefault();
+            setNavCollapsed(prev => !prev);
+            break;
+          case '1':
+            e.preventDefault();
+            setActivePage('chat');
+            break;
+          case '2':
+            e.preventDefault();
+            setActivePage('notes');
+            break;
+          case '3':
+            e.preventDefault();
+            setActivePage('secret');
+            break;
+          case ',':
+            e.preventDefault();
+            setSettingsOpen(true);
+            break;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLive2DOnly]);
   const emotionFollowRef = useRef(emotionFollowEnabled);
   emotionFollowRef.current = emotionFollowEnabled;
   const toolToastTimerRef = useRef(null);
@@ -611,7 +652,6 @@ export default function App() {
   }, [connectionStatus, send]);
 
   // Spine pet mode — listen for emotion relayed via IPC from main window
-  const isLive2DOnly = window.location.search.includes('mode=live2d');
   useEffect(() => {
     if (!isLive2DOnly) return;
     window.electronAPI?.onAvatarEmotion((emotion) => {
@@ -641,30 +681,27 @@ export default function App() {
         onSelect={handleSelectConv}
         onDelete={handleDeleteConv}
         onRename={handleRenameConv}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
       <div className="main-content">
-        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-        <StatusBar
-          status={connectionStatus}
-          onOpenSettings={() => setSettingsOpen(true)}
-        />
-        {isSpeaking && (
-          <div className="speaking-bar">
-            <span>🔊 正在朗读...</span>
-            <button className="btn-stop-speaking" onClick={stopAudio}>⏹ 停止朗读</button>
-          </div>
-        )}
+        {/* Disconnected banner — only visible when not connected */}
+        <DisconnectedBanner status={connectionStatus} />
+
+        {/* Tool toast */}
         {toolToast && (
           <div className="tool-toast">
             <span>🔧</span>
             <span>{toolToast.text}</span>
           </div>
         )}
+
         {/* Secret notification banner */}
         {secretNotification && (
           <div
             className="secret-notification-banner"
-            onClick={() => { setActiveTab('secret'); setSecretNotification(null); }}
+            onClick={() => { setActivePage('secret'); setSecretNotification(null); }}
           >
             🔒 AI 查找了秘密空间，找到 {secretNotification.count} 条结果 — 点击切换到秘密标签查看
             <button
@@ -673,40 +710,65 @@ export default function App() {
             >✕</button>
           </div>
         )}
+
+        {/* Wallpaper layer */}
         {wallpaper && (
           <div className="wallpaper-layer" style={{ backgroundImage: `url(${wallpaper})` }} />
         )}
-        {activeTab === 'chat' ? (
-          <ChatPanel
-            messages={messages}
-            isStreaming={isStreaming}
-            onSend={handleSend}
-            onStop={handleStop}
-            onSaveNote={handleSaveNote}
-            onVoiceInput={handleVoiceInput}
-            onToggleDebug={handleToggleDebug}
-            debugMsgId={debugMsgId}
-            compactMode={compactMode}
-            onDeleteMessage={handleDeleteMessage}
-          />
-        ) : activeTab === 'secret' ? (
-          <SecretNotesPanel
-            notes={secretNotes}
-            onGetNotes={handleGetSecretNotes}
-            onSearch={handleSearchSecretNotes}
-            onDelete={handleDeleteSecretNote}
-            onNewNote={() => handleOpenNewNote(true)}
-          />
-        ) : (
-          <NotesPanel
-            notes={notes}
-            onGetNotes={handleGetNotes}
-            onSearch={handleSearchNotes}
-            onDelete={handleDeleteNote}
-            onExport={handleExportNotes}
-            onNewNote={() => handleOpenNewNote(false)}
-          />
-        )}
+
+        {/* Horizontal sliding page container */}
+        <div className="page-container">
+          <div
+            className="page-track"
+            style={{ transform: `translateX(${-{ notes: 0, chat: 1, secret: 2 }[activePage] * 100}%)` }}
+          >
+            {/* Notes Page */}
+            <div className="page-panel">
+              <NotesPanel
+                notes={notes}
+                onGetNotes={handleGetNotes}
+                onSearch={handleSearchNotes}
+                onDelete={handleDeleteNote}
+                onExport={handleExportNotes}
+                onNewNote={() => handleOpenNewNote(false)}
+              />
+            </div>
+            {/* Chat Page */}
+            <div className="page-panel">
+              <ChatPanel
+                messages={messages}
+                isStreaming={isStreaming}
+                onSend={handleSend}
+                onStop={handleStop}
+                onSaveNote={handleSaveNote}
+                onVoiceInput={handleVoiceInput}
+                onToggleDebug={handleToggleDebug}
+                debugMsgId={debugMsgId}
+                compactMode={compactMode}
+                onDeleteMessage={handleDeleteMessage}
+              />
+            </div>
+            {/* Secret Notes Page */}
+            <div className="page-panel">
+              <SecretNotesPanel
+                notes={secretNotes}
+                onGetNotes={handleGetSecretNotes}
+                onSearch={handleSearchSecretNotes}
+                onDelete={handleDeleteSecretNote}
+                onNewNote={() => handleOpenNewNote(true)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom navigation bar */}
+        <BottomNavBar
+          activePage={activePage}
+          onPageChange={setActivePage}
+          collapsed={navCollapsed}
+          onToggleCollapse={() => setNavCollapsed(prev => !prev)}
+          isSpeaking={isSpeaking}
+        />
       </div>
 
       {/* Settings Drawer */}
@@ -743,6 +805,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Save Note Modal */}
       {saveModal && (
         <div className="modal-overlay" onClick={() => setSaveModal(null)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
@@ -765,6 +828,7 @@ export default function App() {
         </div>
       )}
 
+      {/* New Note Modal */}
       {newNoteModal && (
         <NewNoteModal
           secretMode={newNoteModal.secretMode}
@@ -773,6 +837,7 @@ export default function App() {
         />
       )}
 
+      {/* Markdown Preview Modal */}
       {markdownPreview && (
         <MarkdownPreview
           content={markdownPreview.content}
@@ -781,6 +846,8 @@ export default function App() {
           onCancel={handleCancelPreview}
         />
       )}
+
+      {/* Live2D Sidebar */}
       <FeatureGuard flag="showLive2D">
         <div className="live2d-sidebar">
           <Avatar state={avatarState} />
