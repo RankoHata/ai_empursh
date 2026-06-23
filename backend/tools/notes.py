@@ -24,6 +24,7 @@ async def _search_notes(
     query: Optional[str] = None,
     tags: Optional[list[str]] = None,
     limit: int = 10,
+    _ws_sender: Optional[Any] = None,
 ) -> dict[str, Any]:
     """Execute search_notes tool against public knowledge_items."""
     try:
@@ -47,7 +48,7 @@ async def _search_notes(
         }
 
 
-async def _get_notes_by_ids(note_ids: list[int]) -> dict[str, Any]:
+async def _get_notes_by_ids(note_ids: list[int], _ws_sender: Optional[Any] = None) -> dict[str, Any]:
     """Execute get_notes tool — fetch full public notes by IDs."""
     try:
         all_notes = notes_db.get_all_notes()
@@ -70,7 +71,7 @@ async def _get_notes_by_ids(note_ids: list[int]) -> dict[str, Any]:
         }
 
 
-async def _add_note(content: str, tags: Optional[list[str]] = None) -> dict[str, Any]:
+async def _add_note(content: str, tags: Optional[list[str]] = None, _ws_sender: Optional[Any] = None) -> dict[str, Any]:
     """Execute add_note tool — create a new public note."""
     try:
         note = notes_db.add_note(content=content, tags=tags or [])
