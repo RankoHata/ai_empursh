@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 from tools.base import ToolDefinition
 from tools.notes import NOTE_TOOLS
+from tools.provider import ToolProvider
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +16,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_TOOL_TIMEOUT = 30.0
 
 
-class ToolRegistry:
+class ToolRegistry(ToolProvider):
     """Holds registered ToolDefinitions and dispatches execution.
+    Implements ToolProvider for unified tool dispatching.
 
     Usage::
 
@@ -162,6 +164,10 @@ class ToolRegistry:
     def tool_names(self) -> list[str]:
         """Return all registered tool names."""
         return list(self._tools.keys())
+
+    def can_handle(self, name: str) -> bool:
+        """ToolProvider interface: check if this provider owns the tool."""
+        return name in self._tools
 
     def __contains__(self, name: str) -> bool:
         return name in self._tools

@@ -45,32 +45,42 @@ class ChatSession:
         client: AsyncOpenAI,
         model_name: str,
         max_rounds: int = 20,
-        tool_registry: Any = None,
+        tool_dispatcher: Any = None,  # ToolDispatcher (unified tool routing)
         on_tool_call: Optional[Callable[..., Any]] = None,
         on_tool_result: Optional[Callable[..., Any]] = None,
         max_tool_rounds: int = 10,
-        mcp_manager: Any = None,
         on_thinking: Optional[Callable[..., Any]] = None,
+        # Deprecated — kept for backward compat:
+        tool_registry: Any = None,
+        mcp_manager: Any = None,
     ):
         self._client = client
         self._model_name = model_name
-        self._max_messages = max_rounds * 6  # user + assistant + tool_calls per round
+        self._max_messages = max_rounds * 6
         self._history: list[dict[str, Any]] = []
         self._stop_event = asyncio.Event()
-        self._tool_registry = tool_registry
         self._on_tool_call = on_tool_call
         self._on_tool_result = on_tool_result
         self._max_tool_rounds = max_tool_rounds
-        self._trace: list[dict[str, Any]] = []  # current turn trace
-        self._mcp_manager = mcp_manager
+        self._trace: list[dict[str, Any]] = []
         self._on_thinking = on_thinking
 
+        # ToolDispatcher (unified) — preferred over legacy tool_registry + mcp_manager
+        self._tool_dispatcher = tool_dispatcher
+        # Backward compat
+        self._tool_registry = tool_registry
+        self._mcp_manager = mcp_manager
+
+        has_tools = (
+            self._tool_dispatcher is not None
+            or self._tool_registry is not None
+            or self._mcp_manager is not None
+        )
         logger.debug(
             "ChatSession created: model=%s max_rounds=%d max_messages=%d "
-            "max_tool_rounds=%d has_tools=%s has_mcp=%s",
+            "max_tool_rounds=%d has_tools=%s",
             model_name, max_rounds, self._max_messages,
-            max_tool_rounds, tool_registry is not None,
-            mcp_manager is not None,
+            max_tool_rounds, has_tools,
         )
 
     # ------------------------------------------------------------------
@@ -344,7 +354,11 @@ class ChatSession:
         """
         self._trace = []  # fresh trace for this turn
 
-        has_tools = self._tool_registry is not None or self._mcp_manager is not None
+        has_tools = (
+            self._tool_dispatcher is not None
+            or self._tool_registry is not None
+            or self._mcp_manager is not None
+        )
 
         if not has_tools or not tool_schemas:
             logger.debug("Tool loop: no tools available, falling back to stream_chat")
@@ -353,9 +367,9 @@ class ChatSession:
             return
 
         tool_round = 0
-        logger.debug("Tool loop start: max_rounds=%d tools=%d mcp=%s",
+        logger.debug("Tool loop start: max_rounds=%d tools=%d dispatcher=%s",
                      self._max_tool_rounds, len(tool_schemas),
-                     self._mcp_manager is not None)
+                     self._tool_dispatcher is not None)
 
         # Initial thinking
         if self._on_thinking:
@@ -522,16 +536,19 @@ class ChatSession:
     # ------------------------------------------------------------------
 
     async def _execute_tool(self, name: str, args: dict) -> dict:
-        """Execute a tool by name, routing to MCP or built-in registry.
+        """Execute a tool by name via ToolDispatcher (unified routing)."""
+        import json as _json
 
-        MCP tool names are prefixed with ``mcp__``.
-        Built-in tools are executed via ``self._tool_registry``.
-        """
+        # Preferred: unified ToolDispatcher
+        if self._tool_dispatcher and self._tool_dispatcher.can_handle(name):
+            result_json = await self._tool_dispatcher.execute(name, args)
+            return _json.loads(result_json)
+
+        # Backward compat: legacy routing
         from mcp.adapter import is_mcp_tool
 
         if is_mcp_tool(name) and self._mcp_manager:
             raw_result = await self._mcp_manager.call_tool(name, args)
-            # MCP returns arbitrary JSON; wrap it in our standard format
             if isinstance(raw_result, dict):
                 if "success" not in raw_result:
                     raw_result = {
@@ -548,7 +565,7 @@ class ChatSession:
                 }
         elif self._tool_registry:
             result_json = await self._tool_registry.execute(name, args)
-            return json.loads(result_json)
+            return _json.loads(result_json)
         else:
             return {
                 "success": False,

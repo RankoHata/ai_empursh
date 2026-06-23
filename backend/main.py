@@ -304,16 +304,22 @@ async def websocket_chat(websocket: WebSocket):
                 "error": result.get("message", str(result)) if isinstance(result, dict) else str(result),
             })
 
+    # Build unified tool dispatcher (ToolProvider interface)
+    from tools.dispatcher import ToolDispatcher
+    from mcp.provider import MCPToolProvider
+    tool_dispatcher = ToolDispatcher()
+    tool_dispatcher.register(tool_registry)
+    if app.state.mcp_manager:
+        tool_dispatcher.register(MCPToolProvider(app.state.mcp_manager))
+
     session = ChatSession(
         client=client,
         model_name=config.model["model_name"],
         max_rounds=config.chat["max_history_rounds"],
-        tool_registry=tool_registry,
+        tool_dispatcher=tool_dispatcher,
         on_tool_call=on_tool_call,
         on_tool_result=on_tool_result,
-        mcp_manager=app.state.mcp_manager,
         on_thinking=lambda c: _send_thinking(websocket, c),
-        # on_done handled manually after stream + buffer flush
     )
     tts_task: asyncio.Task | None = None
     tts_enabled = True
