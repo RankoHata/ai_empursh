@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 const PAGES = [
   { key: 'notes', icon: '📝', label: '笔记' },
@@ -7,23 +7,21 @@ const PAGES = [
 ];
 
 export default function BottomNavBar({ activePage, onPageChange, collapsed, onToggleCollapse, isSpeaking }) {
-  const navRef = useRef(null);
-  const hoverZoneRef = useRef(null);
   const expandTimerRef = useRef(null);
 
   // Hover at bottom edge expands collapsed nav (macOS Dock style)
-  const handleMouseEnterZone = useCallback(() => {
+  const handleMouseEnterZone = () => {
     if (collapsed) {
       expandTimerRef.current = setTimeout(() => onToggleCollapse(), 150);
     }
-  }, [collapsed, onToggleCollapse]);
+  };
 
-  const handleMouseLeaveZone = useCallback(() => {
+  const handleMouseLeaveZone = () => {
     if (expandTimerRef.current) {
       clearTimeout(expandTimerRef.current);
       expandTimerRef.current = null;
     }
-  }, []);
+  };
 
   // Cleanup timer
   useEffect(() => {
@@ -34,10 +32,9 @@ export default function BottomNavBar({ activePage, onPageChange, collapsed, onTo
 
   return (
     <div className="bottom-nav-wrapper">
-      {/* Hover detection zone (20px invisible strip at screen bottom, only when collapsed) */}
+      {/* Hover detection zone (only when collapsed) */}
       {collapsed && (
         <div
-          ref={hoverZoneRef}
           className="bottom-nav-hover-zone"
           onMouseEnter={handleMouseEnterZone}
           onMouseLeave={handleMouseLeaveZone}
@@ -45,7 +42,7 @@ export default function BottomNavBar({ activePage, onPageChange, collapsed, onTo
       )}
 
       {/* Nav content */}
-      <div className={`bottom-nav ${collapsed ? 'bottom-nav-collapsed' : ''}`} ref={navRef}>
+      <div className={`bottom-nav ${collapsed ? 'bottom-nav-collapsed' : ''}`}>
         <div className="bottom-nav-items">
           {PAGES.map((page) => (
             <button
