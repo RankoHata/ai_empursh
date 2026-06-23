@@ -25,7 +25,7 @@ export default function DisconnectedBanner({ status }) {
     prevStatusRef.current = status;
   }, [status]);
 
-  if (!visible || status === 'connected') return null;
+  if (!visible || (status === 'connected' && !exiting)) return null;
 
   return (
     <div className={`disconnected-banner ${exiting ? 'disconnected-banner-exit' : ''}`}>
