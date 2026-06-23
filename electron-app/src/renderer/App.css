@@ -74,71 +74,6 @@ html, body, #root {
 }
 
 /* ============================================================
-   StatusBar
-   ============================================================ */
-.status-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 14px;
-  font-size: 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
-  flex-shrink: 0;
-  min-height: 32px;
-}
-.status-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.status-dot.disconnected { background: var(--warning); }
-.status-dot.connecting { background: var(--warning); animation: pulse 1s infinite; }
-.status-dot.connected { background: var(--success); }
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
-.status-bar-spacer { flex: 1; }
-
-.voice-toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  transition: background 0.15s;
-}
-.voice-toggle:hover { background: var(--bg-input); }
-
-/* Gear icon for settings */
-.btn-settings {
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-.btn-settings:hover {
-  background: var(--bg-input);
-  color: var(--text-primary);
-  transform: rotate(30deg);
-}
-
-/* ============================================================
    ChatPanel
    ============================================================ */
 .chat-panel {
@@ -401,36 +336,6 @@ html, body, #root {
 .compact-md pre { margin: 6px 0; }
 .compact-md blockquote { margin: 6px 0; }
 .compact-md hr { margin: 8px 0; }
-
-/* ============================================================
-   TabBar
-   ============================================================ */
-.tab-bar {
-  display: flex;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
-  flex-shrink: 0;
-  padding: 0 8px;
-}
-.tab-btn {
-  flex: 1;
-  padding: 11px 16px;
-  border: none;
-  background: none;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: var(--font);
-  border-bottom: 2px solid transparent;
-  transition: color 0.2s, border-color 0.2s;
-  letter-spacing: 0.3px;
-}
-.tab-btn:hover { color: var(--text-primary); }
-.tab-btn.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
 
 /* ============================================================
    Context Menu
@@ -879,33 +784,6 @@ html, body, #root {
 }
 
 /* ============================================================
-   Speaking Bar (stop TTS)
-   ============================================================ */
-.speaking-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 16px;
-  background: var(--accent-soft);
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-  flex-shrink: 0;
-}
-.btn-stop-speaking {
-  padding: 4px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--accent);
-  background: transparent;
-  color: var(--accent);
-  font-size: 12px;
-  cursor: pointer;
-  font-family: var(--font);
-  font-weight: 500;
-  transition: background 0.2s;
-}
-.btn-stop-speaking:hover { background: var(--accent-soft); }
-
-/* ============================================================
    Personality Selector (in settings drawer)
    ============================================================ */
 .personality-list {
@@ -1268,24 +1146,6 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   border-right: 1px solid var(--border);
   background: var(--bg-secondary);
   overflow: hidden;
-}
-.conv-new-btn {
-  margin: 10px;
-  padding: 9px 14px;
-  border-radius: 8px;
-  border: 1px dashed var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  font-family: var(--font);
-  font-weight: 500;
-  transition: border-color 0.2s, background 0.2s, color 0.2s;
-}
-.conv-new-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
 }
 .conv-items {
   flex: 1;
@@ -1674,4 +1534,272 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 2px;
+}
+
+/* ============================================================
+   Bottom Navigation Bar
+   ============================================================ */
+.bottom-nav-wrapper {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.bottom-nav {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.bottom-nav-collapsed {
+  max-height: 0;
+  opacity: 0;
+  border-top-color: transparent;
+}
+
+.bottom-nav-items {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 6px 0 8px;
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, transform 0.15s;
+  opacity: 0.55;
+}
+.bottom-nav-item:hover {
+  color: var(--text-primary);
+  background: var(--bg-input);
+  opacity: 0.8;
+}
+.bottom-nav-item.active {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.bottom-nav-icon {
+  font-size: 17px;
+  position: relative;
+  line-height: 1;
+}
+
+/* Speaking indicator badge */
+.bottom-nav-speaking-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  font-size: 10px;
+  color: var(--accent);
+  animation: speaking-float 1s ease-in-out infinite;
+}
+@keyframes speaking-float {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(-4px); opacity: 0.6; }
+}
+
+.bottom-nav-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* Collapse trigger line */
+.bottom-nav-collapse-line {
+  height: 3px;
+  cursor: pointer;
+  background: linear-gradient(90deg, transparent 35%, var(--border) 50%, transparent 65%);
+  position: relative;
+  transition: background 0.2s;
+}
+.bottom-nav-collapse-line::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  opacity: 0.4;
+  transition: opacity 0.2s, width 0.2s;
+}
+.bottom-nav-collapse-line:hover {
+  background: linear-gradient(90deg, transparent 30%, rgba(114,137,218,0.15) 50%, transparent 70%);
+}
+.bottom-nav-collapse-line:hover::after {
+  opacity: 0.7;
+  width: 36px;
+}
+
+/* Hover detection zone for expanding collapsed nav */
+.bottom-nav-hover-zone {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  z-index: 10;
+}
+
+/* ============================================================
+   Page Sliding Container
+   ============================================================ */
+.page-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.page-track {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-panel {
+  flex: 1 0 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ============================================================
+   Disconnected Banner
+   ============================================================ */
+.disconnected-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding: 5px 14px;
+  background: rgba(240, 165, 0, 0.12);
+  border-bottom: 1px solid rgba(240, 165, 0, 0.25);
+  color: #f0a500;
+  font-size: 12px;
+  text-align: center;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  animation: bannerIn 0.25s ease-out;
+}
+.disconnected-banner-exit {
+  animation: bannerOut 0.3s ease-out forwards;
+}
+@keyframes bannerIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes bannerOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-4px); }
+}
+
+/* ============================================================
+   ConversationList — collapse mode additions
+   ============================================================ */
+.conv-list.collapsed {
+  width: 44px;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.conv-list.collapsed .conv-header,
+.conv-list.collapsed .conv-items,
+.conv-list.collapsed .conv-footer { display: none; }
+
+.conv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.conv-header-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.conv-header-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.conv-collapse-toggle {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+  font-family: var(--font);
+}
+.conv-collapse-toggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-input);
+}
+
+.conv-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+  font-family: var(--font);
+  flex-shrink: 0;
+}
+.conv-icon-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-input);
+}
+
+.conv-collapsed-spacer {
+  flex: 1;
+}
+
+.conv-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+}
+.conv-version {
+  font-size: 11px;
+  color: var(--text-muted);
 }
