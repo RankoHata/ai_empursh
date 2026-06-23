@@ -78,7 +78,7 @@ export default function App() {
     return localStorage.getItem('wallpaper') || '';
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [navCollapsed, setNavCollapsed] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(true);
   const audioRef = useRef(null);
   const sendRef = useRef(null);
   const ttsEnabledRef = useRef(ttsEnabled);
