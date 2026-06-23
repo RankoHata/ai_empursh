@@ -28,8 +28,6 @@ from openai import AsyncOpenAI
 from config import config
 from agent.chat import ChatSession
 from db import conversations as conv_db
-from db import notes as notes_db
-from db import secret_notes as secret_notes_db
 from db.init_db import init_db as init_db_conn
 from db.workspace_sync import (
     async_sync_all_workspaces,
@@ -42,6 +40,8 @@ from agent import skills as skills_lib
 from agent.personality import get_manager, ensure_seeded
 from tools import create_default_registry
 from mcp import MCPManager
+from routers.notes import handle_secret_message, handle_public_notes
+from routers.personalities import handle_personalities
 from utils.markdown import strip_markdown
 
 # Initialize databases and seed data on startup
@@ -264,61 +264,6 @@ async def _send_thinking(websocket: WebSocket, content: str):
 async def _send_done(websocket: WebSocket):
     """Signal the frontend that the current turn is fully complete."""
     await _ws_send_safe(websocket, "done", {})
-# ---------------------------------------------------------------------------
-# Secret message handler (hard-routed, never touches LLM)
-# ---------------------------------------------------------------------------
-
-async def _handle_secret_message(
-    websocket: WebSocket,
-    msg_type: str,
-    payload: dict,
-) -> None:
-    """Route secret-prefix messages to secret_notes_db. NO LLM involvement."""
-    try:
-        if msg_type == "secret_add_note":
-            note = secret_notes_db.add_secret_note(
-                content=payload.get("content", ""),
-                tags=payload.get("tags", []),
-                title=payload.get("title", ""),
-            )
-            await _ws_send_safe(websocket, "secret_note_saved", {"note": note})
-
-        elif msg_type == "secret_get_notes":
-            notes = secret_notes_db.get_all_secret_notes()
-            await _ws_send_safe(websocket, "secret_notes_list", {"notes": notes})
-
-        elif msg_type == "secret_search_notes":
-            results = secret_notes_db.search_secret_notes(
-                query=payload.get("query", ""),
-                tags=payload.get("tags", []),
-            )
-            await _ws_send_safe(websocket, "secret_search_results", {
-                "results": results,
-                "count": len(results),
-            })
-
-        elif msg_type == "secret_delete_note":
-            note_id = payload.get("note_id")
-            if note_id is not None:
-                ok = secret_notes_db.delete_secret_note(int(note_id))
-                await _ws_send_safe(websocket, "secret_note_deleted", {
-                    "note_id": note_id,
-                    "deleted": ok,
-                })
-            else:
-                await _ws_send_safe(websocket, "error", {
-                    "message": "Missing note_id",
-                })
-
-        else:
-            await _ws_send_safe(websocket, "error", {
-                "message": f"Unknown secret message type: {msg_type}",
-            })
-    except Exception as exc:
-        logger.error("Secret handler error (%s): %s", msg_type, exc)
-        await _ws_send_safe(websocket, "error", {
-            "message": f"Secret operation failed: {exc}",
-        })
 
 
 @app.websocket("/ws")
@@ -397,7 +342,21 @@ async def websocket_chat(websocket: WebSocket):
 
             # --- Gateway hard routing: secret-prefix messages NEVER touch LLM ---
             if msg_type.startswith("secret_"):
-                await _handle_secret_message(websocket, msg_type, payload)
+                await handle_secret_message(websocket, msg_type, payload)
+                continue
+
+            # --- Routers: notes ---
+            if await handle_public_notes(websocket, msg_type, payload):
+                continue
+
+            # --- Routers: personalities ---
+            updated_personality = await handle_personalities(
+                websocket, msg_type, payload, personality_manager, current_personality
+            )
+            if updated_personality is not None:
+                current_personality = updated_personality
+            if msg_type.startswith(("get_personalities", "set_personality", "create_personality",
+                                     "update_personality", "delete_personality", "reseed_personalities")):
                 continue
 
             if msg_type == "chat":
@@ -675,67 +634,6 @@ async def websocket_chat(websocket: WebSocket):
                     "payload": {"file_path": str(file_path)},
                 })
 
-            elif msg_type == "add_note":
-                try:
-                    note = notes_db.add_note(
-                        content=payload.get("content", ""),
-                        tags=payload.get("tags", []),
-                    )
-                    await websocket.send_json({
-                        "type": "note_saved",
-                        "payload": {"note": note},
-                    })
-                except Exception as exc:
-                    await websocket.send_json({
-                        "type": "error",
-                        "payload": {"message": f"Failed to save note: {exc}"},
-                    })
-
-            elif msg_type == "get_notes":
-                all_notes = notes_db.get_all_notes()
-                await websocket.send_json({
-                    "type": "notes_list",
-                    "payload": {"notes": all_notes},
-                })
-
-            elif msg_type == "search_notes":
-                results = notes_db.search_notes(
-                    query=payload.get("query", ""),
-                    tags=payload.get("tags", []),
-                )
-                await websocket.send_json({
-                    "type": "search_results",
-                    "payload": {"results": results},
-                })
-
-            elif msg_type == "delete_note":
-                note_id = payload.get("note_id")
-                if note_id is not None:
-                    ok = notes_db.delete_note(int(note_id))
-                    await websocket.send_json({
-                        "type": "note_deleted",
-                        "payload": {"note_id": note_id, "deleted": ok},
-                    })
-                else:
-                    await websocket.send_json({
-                        "type": "error",
-                        "payload": {"message": "Missing note_id"},
-                    })
-
-            elif msg_type == "export_notes":
-                note_ids = payload.get("note_ids", [])
-                if note_ids:
-                    output_path = notes_db.export_notes(note_ids)
-                    await websocket.send_json({
-                        "type": "notes_exported",
-                        "payload": {"file_path": output_path},
-                    })
-                else:
-                    await websocket.send_json({
-                        "type": "error",
-                        "payload": {"message": "No note_ids provided"},
-                    })
-
             # --- Conversation handlers ---
             elif msg_type == "create_conversation":
                 conv = conv_db.create_conversation(title=payload.get("title", "新对话"))
@@ -774,89 +672,6 @@ async def websocket_chat(websocket: WebSocket):
                         "type": "conversation_renamed",
                         "payload": {"conversation_id": conv_id, "title": title, "ok": ok},
                     })
-
-            elif msg_type == "get_personalities":
-                plist = personality_manager.list_all()
-                grouped = personality_manager.list_grouped()
-                await websocket.send_json({
-                    "type": "personalities_list",
-                    "payload": {
-                        "personalities": plist,
-                        "grouped": grouped,
-                        "current": current_personality.get("id"),
-                    },
-                })
-
-            elif msg_type == "set_personality":
-                pid = int(payload.get("personality_id", 0))
-                p = personality_manager.get(pid)
-                if p:
-                    current_personality = p
-                    logger.info("Personality set to: %s", p["name"])
-                    await websocket.send_json({
-                        "type": "personality_set",
-                        "payload": {"id": pid, "name": p["name"]},
-                    })
-
-            elif msg_type == "create_personality":
-                name = payload.get("name", "").strip()
-                if name:
-                    p = personality_manager.create(
-                        name=name,
-                        description=payload.get("description", ""),
-                        system_prompt=payload.get("system_prompt", ""),
-                        parent_id=payload.get("parent_id"),
-                        version_tag=payload.get("version_tag"),
-                    )
-                    await websocket.send_json({
-                        "type": "personality_created",
-                        "payload": p,
-                    })
-
-            elif msg_type == "update_personality":
-                pid = int(payload.get("id", 0))
-                if pid:
-                    p = personality_manager.update(
-                        pid=pid,
-                        name=payload.get("name"),
-                        description=payload.get("description"),
-                        system_prompt=payload.get("system_prompt"),
-                        version_tag=payload.get("version_tag"),
-                        metadata=payload.get("metadata"),
-                    )
-                    if p:
-                        # If this was our current personality, update reference
-                        if current_personality.get("id") == pid:
-                            current_personality = p
-                        await websocket.send_json({
-                            "type": "personality_updated",
-                            "payload": p,
-                        })
-
-            elif msg_type == "delete_personality":
-                pid = int(payload.get("id", 0))
-                if pid:
-                    ok = personality_manager.delete(pid)
-                    await websocket.send_json({
-                        "type": "personality_deleted",
-                        "payload": {"id": pid, "ok": ok},
-                    })
-
-            elif msg_type == "reseed_personalities":
-                count = personality_manager.reseed()
-                # Reload personalities list and reset current to default
-                current_personality = personality_manager.get_default()
-                plist = personality_manager.list_all()
-                grouped = personality_manager.list_grouped()
-                await websocket.send_json({
-                    "type": "personalities_reseeded",
-                    "payload": {
-                        "count": count,
-                        "personalities": plist,
-                        "grouped": grouped,
-                        "current": current_personality.get("id"),
-                    },
-                })
 
             elif msg_type == "get_turns":
                 conv_id = payload.get("conversation_id", current_conv_id or "")
