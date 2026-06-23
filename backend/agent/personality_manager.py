@@ -97,16 +97,22 @@ class PersonalityManager:
     # ── 模板渲染 ──
 
     def render_prompt(
-        self, personality: dict[str, Any], extra_context: Optional[dict[str, Any]] = None
+        self,
+        personality: dict[str, Any],
+        extra_context: Optional[dict[str, Any]] = None,
+        *,
+        include_emotion: bool = True,
     ) -> str:
-        """渲染 system_prompt 中的 Jinja2 模板变量，并追加情绪标签指令。
+        """渲染 system_prompt 中的 Jinja2 模板变量。
 
         Args:
             personality: 人格记录（含 system_prompt, name, version_tag 等）
             extra_context: 额外的模板变量
+            include_emotion: 是否追加情绪标签指令（默认 True 兼容旧调用方；
+                             使用 PromptPipeline 时设为 False）
 
         Returns:
-            渲染后的完整 system_prompt（含情绪指令）
+            渲染后的 system_prompt 字符串
         """
         now = datetime.now()
         ctx = {
@@ -120,13 +126,14 @@ class PersonalityManager:
 
         rendered = render_prompt(personality.get("system_prompt", ""), ctx)
 
-        # 追加情绪标签指令
-        emotion_instruction = (
-            "\n\n[系统指令] 在每次回复的最后一行，单独输出 [!emotion:标签!] 表示你当前的情绪语气。"
-            "可用标签：happy, sad, angry, thinking, surprised, bored, idle。"
-            "此标记不会显示给用户，请务必带上。"
-        )
-        return rendered + emotion_instruction
+        if include_emotion:
+            emotion_instruction = (
+                "\n\n[系统指令] 在每次回复的最后一行，单独输出 [!emotion:标签!] 表示你当前的情绪语气。"
+                "可用标签：happy, sad, angry, thinking, surprised, bored, idle。"
+                "此标记不会显示给用户，请务必带上。"
+            )
+            return rendered + emotion_instruction
+        return rendered
 
     # ── 种子管理 ──
 

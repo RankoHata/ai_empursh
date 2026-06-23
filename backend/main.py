@@ -403,14 +403,14 @@ async def websocket_chat(websocket: WebSocket):
                 )
 
                 # --- Send to model ---
-                # Inject personality system prompt at start of each turn
-                personality_prompt = personality_manager.render_prompt(current_personality)
-                if compact_enabled:
-                    personality_prompt += (
-                        "\n\n[系统指令-紧凑模式] 回复尽量紧凑简洁："
-                        "避免多余空行，段落之间最多一个空行；"
-                        "力求简洁、直接，不写冗余的礼貌用语和铺垫。"
-                    )
+                # Build system prompt via pipeline (消除硬编码)
+                from prompt import PromptPipeline, PromptContext
+                pipeline = PromptPipeline.default(personality_manager, current_personality)
+                prompt_ctx = PromptContext(
+                    user_name=config.user.get("name", "") or "用户",
+                    compact_enabled=compact_enabled,
+                )
+                personality_prompt = pipeline.build(prompt_ctx)
                 if personality_prompt:
                     session.set_system_prompt(personality_prompt)
 

@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import useWebSocket from './hooks/useWebSocket';
 import useChat from './hooks/useChat';
 import useNotes from './hooks/useNotes';
 import useConversations from './hooks/useConversations';
+import useSettings from './hooks/useSettings';
 import BottomNavBar from './components/BottomNavBar';
 import DisconnectedBanner from './components/DisconnectedBanner';
 import ConversationList from './components/ConversationList';
@@ -16,49 +17,26 @@ import Avatar from './components/Avatar';
 import FeatureGuard from './components/FeatureGuard';
 
 export default function App() {
-  // ── Layout / Routing state ──
+  // ── Layout / Routing ──
   const [activePage, setActivePage] = useState('chat');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const isLive2DOnly = window.location.search.includes('mode=live2d');
 
-  // ── Settings state (not yet extracted) ──
+  // ── Avatar (shared: chat emotion + live2d IPC) ──
   const [avatarState, setAvatarState] = useState('idle');
-  const [ttsEnabled, setTtsEnabled] = useState(false);
-  const [config, setConfig] = useState(null);
-  const [personalities, setPersonalities] = useState([]);
-  const [groupedPersonalities, setGroupedPersonalities] = useState([]);
-  const [currentPersonalityId, setCurrentPersonalityId] = useState(null);
-  const [emotionFollowEnabled, setEmotionFollowEnabled] = useState(() =>
-    localStorage.getItem('emotionFollowEnabled') !== 'false'
-  );
-  const [userName, setUserName] = useState('');
-  const [compactMode, setCompactMode] = useState(() =>
-    localStorage.getItem('compactMode') === '1'
-  );
-  const [wallpaper, setWallpaper] = useState(() =>
-    localStorage.getItem('wallpaper') || ''
-  );
-
-  // ── Refs for cross-hook communication ──
-  const emotionTimerRef = useRef(null);
-  const ttsEnabledRef = useRef(ttsEnabled);
-  ttsEnabledRef.current = ttsEnabled;
-  const emotionFollowRef = useRef(emotionFollowEnabled);
-  emotionFollowRef.current = emotionFollowEnabled;
-  const sendRef = useRef(null);
-
-  const settingsRefs = { emotionFollowRef, ttsEnabledRef, emotionTimerRef };
 
   // ── WebSocket ──
   const { connectionStatus, send } = useWebSocket({ onMessage: handleMessage });
-  sendRef.current = send;
 
-  // ── Custom hooks ──
-  const chat = useChat(send, settingsRefs, setAvatarState);
+  // ── Hooks ──
+  const settings = useSettings(send);
+  const chat = useChat(send, settings.settingsRefs, setAvatarState);
   const notes = useNotes(send);
   const conversations = useConversations(send, chat.clearMessages);
+
+  const sendRef = useRef(send);
+  sendRef.current = send;
 
   // ── Central message dispatcher ──
   function handleMessage(type, payload) {
@@ -67,43 +45,19 @@ export default function App() {
       return;
     }
     // Delegate to hooks in priority order
+    if (settings.onMessage(type, payload)) return;
     if (chat.onMessage(type, payload)) return;
     if (notes.onMessage(type, payload)) return;
     if (conversations.onMessage(type, payload)) return;
 
-    // Remaining cases handled below
-    switch (type) {
-      case 'config':
-        setConfig(payload);
-        if (payload.user?.name !== undefined) setUserName(payload.user.name);
-        break;
-      case 'config_updated':
-        break;
-      case 'personalities_list':
-      case 'personalities_reseeded':
-        setPersonalities(payload.personalities || []);
-        setGroupedPersonalities(payload.grouped || []);
-        if (payload.current) setCurrentPersonalityId(payload.current);
-        break;
-      case 'personality_set':
-        setCurrentPersonalityId(payload.id);
-        break;
-      case 'personality_created':
-      case 'personality_updated':
-      case 'personality_deleted':
-        send('get_personalities', {});
-        break;
-      case 'voice_result': {
-        const text = (payload.text || '').trim();
-        if (text) {
-          chat.stopAudio();
-          chat.addUserMsgAndSend(text);
-          send('chat', { message: text });
-        }
-        break;
+    // voice_result: re-send recognized text
+    if (type === 'voice_result') {
+      const text = (payload.text || '').trim();
+      if (text) {
+        chat.stopAudio();
+        chat.addUserMsgAndSend(text);
+        send('chat', { message: text });
       }
-      default:
-        break;
     }
   }
 
@@ -112,14 +66,14 @@ export default function App() {
   // Sync compact mode on connect
   useEffect(() => {
     if (connectionStatus === 'connected') {
-      send('compact_mode', { enabled: compactMode });
+      send('compact_mode', { enabled: settings.compactMode });
     }
   }, [connectionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist emotionFollowEnabled
   useEffect(() => {
-    localStorage.setItem('emotionFollowEnabled', String(emotionFollowEnabled));
-  }, [emotionFollowEnabled]);
+    localStorage.setItem('emotionFollowEnabled', String(settings.emotionFollowEnabled));
+  }, [settings.emotionFollowEnabled]);
 
   // Initial data fetch on connect
   const prevStatusRef = useRef(connectionStatus);
@@ -144,38 +98,23 @@ export default function App() {
           case '1': e.preventDefault(); setActivePage('chat'); break;
           case '2': e.preventDefault(); setActivePage('notes'); break;
           case '3': e.preventDefault(); setActivePage('secret'); break;
-          case ',': e.preventDefault(); setSettingsOpen(true); break;
+          case ',': e.preventDefault(); settings.setSettingsOpen(true); break;
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLive2DOnly]);
+  }, [isLive2DOnly, settings.setSettingsOpen]);
 
   // Live2D pet mode: emotion relay via IPC
   useEffect(() => {
     if (!isLive2DOnly) return;
     window.electronAPI?.onAvatarEmotion((emotion) => {
       setAvatarState(emotion);
-      clearTimeout(emotionTimerRef.current);
-      emotionTimerRef.current = setTimeout(() => setAvatarState('idle'), 3000);
+      clearTimeout(settings.emotionTimerRef.current);
+      settings.emotionTimerRef.current = setTimeout(() => setAvatarState('idle'), 3000);
     });
-  }, [isLive2DOnly]);
-
-  // ── Settings handlers ──
-
-  const handleToggleTts = useCallback((on) => {
-    setTtsEnabled(on);
-    if (!on) chat.stopAudio();
-    send('tts_enabled', { enabled: on });
-  }, [send, chat.stopAudio]);
-
-  const handleGetConfig = useCallback(() => send('get_config', {}), [send]);
-  const handleUpdateConfig = useCallback((updates) => send('update_config', { updates }), [send]);
-  const handleUserNameChange = useCallback((name) => {
-    setUserName(name);
-    send('update_config', { updates: { user: { name } } });
-  }, [send]);
+  }, [isLive2DOnly, settings.emotionTimerRef]);
 
   // ── Pet mode: minimal render ──
   if (isLive2DOnly) {
@@ -198,13 +137,12 @@ export default function App() {
         onRename={conversations.handleRenameConv}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => settings.setSettingsOpen(true)}
       />
 
       <div className="main-content">
         <DisconnectedBanner status={connectionStatus} />
 
-        {/* Tool toast */}
         {chat.toolToast && (
           <div className="tool-toast">
             <span className="tool-toast-icon">🔧</span>
@@ -212,7 +150,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Secret notification */}
         {notes.secretNotification && (
           <div className="secret-notification-banner">
             🔒 已检索到 {notes.secretNotification.count} 条秘密记录
@@ -221,12 +158,10 @@ export default function App() {
           </div>
         )}
 
-        {/* Wallpaper layer */}
-        {wallpaper && (
-          <div className="wallpaper-layer" style={{ backgroundImage: `url(${wallpaper})` }} />
+        {settings.wallpaper && (
+          <div className="wallpaper-layer" style={{ backgroundImage: `url(${settings.wallpaper})` }} />
         )}
 
-        {/* Sliding pages */}
         <div className="page-container">
           <div className="page-track" style={{ transform: `translateX(-${activePage === 'chat' ? 1 : activePage === 'notes' ? 0 : 2}00%)` }}>
             <div className="page-panel">
@@ -249,7 +184,7 @@ export default function App() {
                 onVoiceInput={chat.handleVoiceInput}
                 onToggleDebug={chat.handleToggleDebug}
                 debugMsgId={chat.debugMsgId}
-                compactMode={compactMode}
+                compactMode={settings.compactMode}
                 onDeleteMessage={chat.handleDeleteMessage}
               />
             </div>
@@ -275,35 +210,39 @@ export default function App() {
       </div>
 
       {/* Settings drawer */}
-      {settingsOpen && (
-        <div className="settings-backdrop" onClick={() => setSettingsOpen(false)}>
+      {settings.settingsOpen && (
+        <div className="settings-backdrop" onClick={() => settings.setSettingsOpen(false)}>
           <div className="settings-panel-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="settings-drawer-header">
               <h2>⚙️ 设置</h2>
-              <button className="settings-drawer-close" onClick={() => setSettingsOpen(false)}>✕</button>
+              <button className="settings-drawer-close" onClick={() => settings.setSettingsOpen(false)}>✕</button>
             </div>
             <SettingsPanel
-              config={config}
-              onUpdateConfig={handleUpdateConfig}
-              onLoad={handleGetConfig}
-              compactMode={compactMode}
-              onToggleCompact={(v) => { setCompactMode(v); localStorage.setItem('compactMode', v ? '1' : '0'); send('compact_mode', { enabled: v }); }}
-              personalities={personalities}
-              currentPersonalityId={currentPersonalityId}
+              config={settings.config}
+              onUpdateConfig={settings.handleUpdateConfig}
+              onLoad={settings.handleGetConfig}
+              compactMode={settings.compactMode}
+              onToggleCompact={(v) => {
+                settings.setCompactMode(v);
+                localStorage.setItem('compactMode', v ? '1' : '0');
+                send('compact_mode', { enabled: v });
+              }}
+              personalities={settings.personalities}
+              currentPersonalityId={settings.currentPersonalityId}
               onSetPersonality={(pid) => { send('set_personality', { personality_id: pid }); }}
               onCreatePersonality={(data) => { send('create_personality', data); }}
               onUpdatePersonality={(id, data) => { send('update_personality', { id, ...data }); }}
               onDeletePersonality={(id) => { if (confirm('确定删除此人格？')) send('delete_personality', { id }); }}
               onReseedPersonalities={() => { send('reseed_personalities', {}); }}
-              wallpaper={wallpaper}
-              onSetWallpaper={(v) => { setWallpaper(v); localStorage.setItem('wallpaper', v); }}
-              grouped={groupedPersonalities}
-              userName={userName}
-              onUserNameChange={handleUserNameChange}
-              emotionFollowEnabled={emotionFollowEnabled}
-              onSetEmotionFollow={setEmotionFollowEnabled}
-              ttsEnabled={ttsEnabled}
-              onToggleTts={handleToggleTts}
+              wallpaper={settings.wallpaper}
+              onSetWallpaper={(v) => { settings.setWallpaper(v); localStorage.setItem('wallpaper', v); }}
+              grouped={settings.groupedPersonalities}
+              userName={settings.userName}
+              onUserNameChange={settings.handleUserNameChange}
+              emotionFollowEnabled={settings.emotionFollowEnabled}
+              onSetEmotionFollow={settings.setEmotionFollowEnabled}
+              ttsEnabled={settings.ttsEnabled}
+              onToggleTts={(on) => settings.handleToggleTts(on, chat.stopAudio)}
             />
           </div>
         </div>
@@ -319,7 +258,7 @@ export default function App() {
               type="text"
               placeholder="标签（逗号分隔）"
               value={notes.saveTags}
-              onChange={(e) => notes.setSaveTags(e.target.value)} // need to expose setSaveTags
+              onChange={(e) => notes.setSaveTags(e.target.value)}
             />
             <div className="modal-actions">
               <button onClick={notes.handleConfirmSave}>保存</button>
@@ -333,7 +272,7 @@ export default function App() {
         <NewNoteModal
           secretMode={notes.newNoteModal.secretMode}
           onSave={(content, tags, title) => notes.handleAddNoteFromModal(content, tags, title)}
-          onCancel={() => notes.setNewNoteModal(null)} // need to expose setNewNoteModal
+          onCancel={() => notes.setNewNoteModal(null)}
         />
       )}
 
@@ -346,7 +285,6 @@ export default function App() {
         />
       )}
 
-      {/* Avatar Sidebar */}
       <FeatureGuard flag="showAvatar">
         <div className="live2d-sidebar">
           <Avatar state={avatarState} />
