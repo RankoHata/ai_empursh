@@ -26,13 +26,6 @@ export default function ToolCallCard({ toolCall }) {
     }
   }, [state]);
 
-  // Auto-expand while running
-  useEffect(() => {
-    if (state === 'running') {
-      setExpanded(true);
-    }
-  }, [state]);
-
   let statusIcon, statusText, statusClass;
   if (state === 'running') {
     statusIcon = '⏳';   // ⏳

@@ -226,6 +226,11 @@ html, body, #root {
   padding: 0 6px;
 }
 
+.message-bubble.user .bubble-label,
+.message-bubble.user .bubble-timestamp {
+  align-self: flex-end;
+}
+
 /* ============================================================
    Markdown Content Styles
    ============================================================ */
@@ -864,6 +869,19 @@ html, body, #root {
   transition: background 0.15s;
 }
 .personality-new-btn:hover { background: var(--accent-soft); }
+
+.personality-reseed-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.15s;
+}
+.personality-reseed-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 .personality-badge {
   font-size: 10px;
@@ -1670,13 +1688,11 @@ html.live2d-pet, html.live2d-pet body, html.live2d-pet #root {
 .page-track {
   display: flex;
   height: 100%;
-  width: 100%;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .page-panel {
-  flex: 1 0 100%;
-  min-width: 0;
+  flex: 0 0 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;

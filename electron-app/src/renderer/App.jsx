@@ -181,6 +181,7 @@ export default function App() {
                 ...updated[i],
                 content: payload.full_content || updated[i].content,
                 isStreaming: false,
+                thinking: null,
                 trace: payload.trace,
               };
               break;
@@ -324,7 +325,8 @@ export default function App() {
       case 'config_updated':
         break;
 
-      case 'personalities_list': {
+      case 'personalities_list':
+      case 'personalities_reseeded': {
         setPersonalities(payload.personalities || []);
         setGroupedPersonalities(payload.grouped || []);
         if (payload.current) setCurrentPersonalityId(payload.current);
@@ -358,9 +360,9 @@ export default function App() {
         // Append tool_call entry to the current streaming assistant message
         setMessages((prev) => {
           const updated = [...prev];
-          // Find the most recent assistant message
+          // Find the most recent STREAMING assistant message (not a completed one from previous turn)
           for (let i = updated.length - 1; i >= 0; i--) {
-            if (updated[i].role === 'assistant') {
+            if (updated[i].role === 'assistant' && updated[i].isStreaming) {
               const msg = updated[i];
               const toolCalls = msg.toolCalls ? [...msg.toolCalls] : [];
               toolCalls.push({
@@ -370,9 +372,24 @@ export default function App() {
                 state: 'running',
               });
               updated[i] = { ...msg, toolCalls };
-              break;
+              return updated;
             }
           }
+          // No streaming assistant message yet (model called tools before any text)
+          // Create a placeholder assistant message
+          updated.push({
+            id: nextId++,
+            role: 'assistant',
+            content: '',
+            isStreaming: true,
+            timestamp: Date.now(),
+            toolCalls: [{
+              id: callId,
+              name: toolName,
+              args: payload.args || {},
+              state: 'running',
+            }],
+          });
           return updated;
         });
         break;
@@ -387,23 +404,34 @@ export default function App() {
 
         setMessages((prev) => {
           const updated = [...prev];
+          // Prefer streaming messages; fall back to any assistant with toolCalls
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant' && updated[i].isStreaming && updated[i].toolCalls) {
+              const msg = updated[i];
+              const toolCalls = msg.toolCalls.map((tc) => {
+                const matches = callId ? tc.id === callId : (tc.name === resultName && tc.state === 'running');
+                if (matches) {
+                  return { ...tc, state: 'completed', result: payload.result || {}, duration_ms: durationMs };
+                }
+                return tc;
+              });
+              updated[i] = { ...msg, toolCalls };
+              return updated;
+            }
+          }
+          // Fallback: search any assistant message (for edge cases where isStreaming was already cleared)
           for (let i = updated.length - 1; i >= 0; i--) {
             if (updated[i].role === 'assistant' && updated[i].toolCalls) {
               const msg = updated[i];
               const toolCalls = msg.toolCalls.map((tc) => {
                 const matches = callId ? tc.id === callId : (tc.name === resultName && tc.state === 'running');
                 if (matches) {
-                  return {
-                    ...tc,
-                    state: 'completed',
-                    result: payload.result || {},
-                    duration_ms: durationMs,
-                  };
+                  return { ...tc, state: 'completed', result: payload.result || {}, duration_ms: durationMs };
                 }
                 return tc;
               });
               updated[i] = { ...msg, toolCalls };
-              break;
+              return updated;
             }
           }
           return updated;
@@ -420,6 +448,22 @@ export default function App() {
 
         setMessages((prev) => {
           const updated = [...prev];
+          // Prefer streaming messages; fall back to any assistant with toolCalls
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'assistant' && updated[i].isStreaming && updated[i].toolCalls) {
+              const msg = updated[i];
+              const toolCalls = msg.toolCalls.map((tc) => {
+                const matches = callId ? tc.id === callId : (tc.name === errName && tc.state === 'running');
+                if (matches) {
+                  return { ...tc, state: 'error', error: errMsg };
+                }
+                return tc;
+              });
+              updated[i] = { ...msg, toolCalls };
+              return updated;
+            }
+          }
+          // Fallback: search any assistant message
           for (let i = updated.length - 1; i >= 0; i--) {
             if (updated[i].role === 'assistant' && updated[i].toolCalls) {
               const msg = updated[i];
@@ -431,7 +475,7 @@ export default function App() {
                 return tc;
               });
               updated[i] = { ...msg, toolCalls };
-              break;
+              return updated;
             }
           }
           return updated;
@@ -511,6 +555,13 @@ export default function App() {
 
   const { connectionStatus, send } = useWebSocket({ onMessage: handleMessage });
   sendRef.current = send;
+
+  // Sync compact mode to backend on connect
+  useEffect(() => {
+    if (connectionStatus === 'connected') {
+      send('compact_mode', { enabled: compactMode });
+    }
+  }, [connectionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = useCallback((text) => {
     stopAudio();
@@ -784,13 +835,14 @@ export default function App() {
               onUpdateConfig={handleUpdateConfig}
               onLoad={handleGetConfig}
               compactMode={compactMode}
-              onToggleCompact={(v) => { setCompactMode(v); localStorage.setItem('compactMode', v ? '1' : '0'); }}
+              onToggleCompact={(v) => { setCompactMode(v); localStorage.setItem('compactMode', v ? '1' : '0'); send('compact_mode', { enabled: v }); }}
               personalities={personalities}
               currentPersonalityId={currentPersonalityId}
               onSetPersonality={(pid) => { send('set_personality', { personality_id: pid }); }}
               onCreatePersonality={(data) => { send('create_personality', data); }}
               onUpdatePersonality={(id, data) => { send('update_personality', { id, ...data }); }}
               onDeletePersonality={(id) => { if (confirm('确定删除此人格？')) send('delete_personality', { id }); }}
+              onReseedPersonalities={() => { send('reseed_personalities', {}); }}
               wallpaper={wallpaper}
               onSetWallpaper={(v) => { setWallpaper(v); localStorage.setItem('wallpaper', v); }}
               grouped={groupedPersonalities}

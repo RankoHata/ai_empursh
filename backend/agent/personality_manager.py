@@ -108,9 +108,10 @@ class PersonalityManager:
         Returns:
             渲染后的完整 system_prompt（含情绪指令）
         """
+        now = datetime.now()
         ctx = {
             "user_name": self._config.user.get("name", "") or "用户",
-            "current_time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "current_time": now.strftime("%Y-%m-%d %H:%M"),
             "personality_name": personality.get("name", "AI 助理"),
             "version_tag": personality.get("version_tag") or "",
         }
@@ -126,6 +127,12 @@ class PersonalityManager:
             "此标记不会显示给用户，请务必带上。"
         )
         return rendered + emotion_instruction
+
+    # ── 种子管理 ──
+
+    def reseed(self) -> int:
+        """强制从 YAML 重新导入所有种子人格（覆盖已有种子数据）。"""
+        return personalities_db.seed_personalities(force=True)
 
     # ── 情绪标签提取 ──
 

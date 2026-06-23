@@ -372,6 +372,7 @@ async def websocket_chat(websocket: WebSocket):
     )
     tts_task: asyncio.Task | None = None
     tts_enabled = True
+    compact_enabled = False
     current_conv_id: Optional[str] = None
     turn_index = 0
     current_personality = personality_manager.get_default()  # active personality (DB record)
@@ -445,6 +446,12 @@ async def websocket_chat(websocket: WebSocket):
                 # --- Send to model ---
                 # Inject personality system prompt at start of each turn
                 personality_prompt = personality_manager.render_prompt(current_personality)
+                if compact_enabled:
+                    personality_prompt += (
+                        "\n\n[系统指令-紧凑模式] 回复尽量紧凑简洁："
+                        "避免多余空行，段落之间最多一个空行；"
+                        "力求简洁、直接，不写冗余的礼貌用语和铺垫。"
+                    )
                 if personality_prompt:
                     session.set_system_prompt(personality_prompt)
 
@@ -607,6 +614,10 @@ async def websocket_chat(websocket: WebSocket):
             elif msg_type == "tts_enabled":
                 tts_enabled = payload.get("enabled", True)
                 logger.info("TTS enabled: %s", tts_enabled)
+
+            elif msg_type == "compact_mode":
+                compact_enabled = payload.get("enabled", False)
+                logger.info("Compact mode: %s", compact_enabled)
 
             elif msg_type == "delete_turn":
                 turn_index = payload.get("turn_index")
@@ -830,6 +841,22 @@ async def websocket_chat(websocket: WebSocket):
                         "type": "personality_deleted",
                         "payload": {"id": pid, "ok": ok},
                     })
+
+            elif msg_type == "reseed_personalities":
+                count = personality_manager.reseed()
+                # Reload personalities list and reset current to default
+                current_personality = personality_manager.get_default()
+                plist = personality_manager.list_all()
+                grouped = personality_manager.list_grouped()
+                await websocket.send_json({
+                    "type": "personalities_reseeded",
+                    "payload": {
+                        "count": count,
+                        "personalities": plist,
+                        "grouped": grouped,
+                        "current": current_personality.get("id"),
+                    },
+                })
 
             elif msg_type == "get_turns":
                 conv_id = payload.get("conversation_id", current_conv_id or "")

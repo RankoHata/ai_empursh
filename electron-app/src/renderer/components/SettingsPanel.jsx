@@ -5,6 +5,7 @@ export default function SettingsPanel({
   compactMode, onToggleCompact,
   personalities, currentPersonalityId, onSetPersonality,
   onCreatePersonality, onUpdatePersonality, onDeletePersonality,
+  onReseedPersonalities,
   wallpaper, onSetWallpaper,
   grouped,
   userName, onUserNameChange,
@@ -59,6 +60,8 @@ export default function SettingsPanel({
     }
     setEditModal(false);
   }, [editId, editName, editDesc, editPrompt, isNew, onCreatePersonality, onUpdatePersonality]);
+
+  const [reseedMsg, setReseedMsg] = useState('');
 
   useEffect(() => { onLoad(); }, []); // eslint-disable-line
 
@@ -116,7 +119,21 @@ export default function SettingsPanel({
       <div className="settings-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h3 style={{ margin: 0 }}>助理人格</h3>
-          <button className="personality-new-btn" onClick={openNew}>+ 新建</button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button
+              className="personality-reseed-btn"
+              title="从 YAML 种子文件重新加载人格（覆盖种子数据）"
+              onClick={() => {
+                if (onReseedPersonalities) {
+                  onReseedPersonalities();
+                  setReseedMsg('已重载');
+                  setTimeout(() => setReseedMsg(''), 2000);
+                }
+              }}
+            >↻ 重载</button>
+            <button className="personality-new-btn" onClick={openNew}>+ 新建</button>
+            {reseedMsg && <span style={{ fontSize: 12, color: '#4fc3f7' }}>{reseedMsg}</span>}
+          </div>
         </div>
         {grouped && grouped.length > 0 ? (
           <select

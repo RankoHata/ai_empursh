@@ -28,8 +28,12 @@ DEFAULT_PERSONALITY_ID = "default"
 # Seed: load YAML files into DB on first run
 # ---------------------------------------------------------------------------
 
-def seed_personalities() -> int:
-    """Import YAML personality files into DB if table is empty.
+def seed_personalities(force: bool = False) -> int:
+    """Import YAML personality files into DB.
+
+    By default only imports when the table is empty (first run).
+    Set ``force=True`` to delete all existing seed records and re-import,
+    useful after editing YAML seed files.
 
     Supports ``parent_name`` field: a symbolic reference to another personality's
     ``name``, resolved to ``parent_id`` after all records are inserted.
@@ -41,6 +45,13 @@ def seed_personalities() -> int:
     try:
         existing = conn.execute("SELECT COUNT(*) as cnt FROM personalities").fetchone()
         was_empty = not existing or existing["cnt"] == 0
+
+        if force and not was_empty:
+            deleted = conn.execute(
+                "DELETE FROM personalities WHERE is_seed = 1"
+            ).rowcount
+            logger.info("Force reseed: deleted %d seed personalities", deleted)
+            was_empty = True  # proceed to import
 
         seeded = 0
         if was_empty:
