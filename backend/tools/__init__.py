@@ -123,7 +123,8 @@ class ToolRegistry:
         )
         started = time.monotonic()
         try:
-            coro = tool.executor(**args)
+            # Inject per-connection ws_sender so tools can push to frontend
+            coro = tool.executor(**args, _ws_sender=self._ws_sender)
             result = await asyncio.wait_for(coro, timeout=DEFAULT_TOOL_TIMEOUT)
         except asyncio.TimeoutError:
             logger.warning("Tool '%s' timed out after %.1fs", name, DEFAULT_TOOL_TIMEOUT)
@@ -178,7 +179,4 @@ def create_default_registry() -> ToolRegistry:
     from tools.notes import NOTE_TOOLS
     registry = ToolRegistry()
     registry.register_all(NOTE_TOOLS)
-    # Allow secret tool executor to access the registry for WS push
-    import tools.notes as notes_module
-    notes_module._set_registry(registry)
     return registry

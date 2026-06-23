@@ -95,20 +95,11 @@ async def _add_note(content: str, tags: Optional[list[str]] = None) -> dict[str,
 # Secret tool — search_secret_notes
 # ---------------------------------------------------------------------------
 
-# Module-level reference set by create_default_registry / main.py
-_registry: Optional[Any] = None
-
-
-def _set_registry(registry: Any) -> None:
-    """Store a reference to the ToolRegistry for WS callback access."""
-    global _registry
-    _registry = registry
-
-
 async def _search_secret_notes(
     query: Optional[str] = None,
     tags: Optional[list[str]] = None,
     limit: int = 10,
+    _ws_sender: Optional[Any] = None,  # injected by ToolRegistry.execute()
 ) -> dict[str, Any]:
     """Execute search_secret_notes tool.
 
@@ -124,9 +115,9 @@ async def _search_secret_notes(
             results = results[:limit]
 
         # Push real results to frontend (bypasses LLM)
-        if _registry is not None and _registry._ws_sender is not None:
+        if _ws_sender is not None:
             try:
-                await _registry._ws_sender("secret_search_results", {
+                await _ws_sender("secret_search_results", {
                     "results": results,
                     "count": len(results),
                     "query": query or "",
