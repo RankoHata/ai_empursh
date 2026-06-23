@@ -51,7 +51,6 @@ class ChatSession:
         max_tool_rounds: int = 10,
         mcp_manager: Any = None,
         on_thinking: Optional[Callable[..., Any]] = None,
-        on_done: Optional[Callable[..., Any]] = None,
     ):
         self._client = client
         self._model_name = model_name
@@ -65,7 +64,6 @@ class ChatSession:
         self._trace: list[dict[str, Any]] = []  # current turn trace
         self._mcp_manager = mcp_manager
         self._on_thinking = on_thinking
-        self._on_done = on_done
 
         logger.debug(
             "ChatSession created: model=%s max_rounds=%d max_messages=%d "
@@ -352,8 +350,6 @@ class ChatSession:
             logger.debug("Tool loop: no tools available, falling back to stream_chat")
             async for token in self.stream_chat():
                 yield ("content", token)
-            if self._on_done:
-                await self._on_done()
             return
 
         tool_round = 0
@@ -520,10 +516,6 @@ class ChatSession:
             self.add_system_message("已达到最大工具调用次数。请基于已有信息直接回复用户，不要再调用工具。")
             async for token in self.stream_chat():
                 yield ("content", token)
-
-        # Signal completion
-        if self._on_done:
-            await self._on_done()
 
     # ------------------------------------------------------------------
     # Unified tool execution (built-in + MCP)

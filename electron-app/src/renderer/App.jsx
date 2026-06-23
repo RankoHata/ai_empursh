@@ -7,7 +7,6 @@ import ChatPanel from './components/ChatPanel';
 import NotesPanel from './components/NotesPanel';
 import SecretNotesPanel from './components/SecretNotesPanel';
 import NewNoteModal from './components/NewNoteModal';
-import AvatarStatus from './components/AvatarStatus';
 import MarkdownPreview from './components/MarkdownPreview';
 import SettingsPanel from './components/SettingsPanel';
 import Avatar from './components/Avatar';
@@ -899,8 +898,8 @@ export default function App() {
         />
       )}
 
-      {/* Live2D Sidebar */}
-      <FeatureGuard flag="showLive2D">
+      {/* Avatar Sidebar */}
+      <FeatureGuard flag="showAvatar">
         <div className="live2d-sidebar">
           <Avatar state={avatarState} />
         </div>
