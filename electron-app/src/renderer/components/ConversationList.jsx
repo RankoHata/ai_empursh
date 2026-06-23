@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 
-export default function ConversationList({ conversations, activeId, onNew, onSelect, onDelete, onRename, collapsed, onToggleCollapse, onOpenSettings }) {
+export default function ConversationList({ conversations, activeId, onNew, onSelect, onDelete, onRename, collapsed = false, onToggleCollapse = () => {}, onOpenSettings = () => {} }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const editRef = useRef(null);
