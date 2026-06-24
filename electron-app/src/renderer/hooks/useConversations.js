@@ -32,10 +32,11 @@ export default function useConversations(send, clearMessages) {
   const onMessage = useCallback((type, payload) => {
     switch (type) {
       case 'conversation_created':
-        setActiveConvId(payload.conversation?.id || null);
+        // payload IS the conversation object (backend sends conv directly)
+        setActiveConvId(payload.id || null);
         setConversations(prev => {
-          if (payload.conversation && !prev.find(c => c.id === payload.conversation.id)) {
-            return [...prev, payload.conversation];
+          if (payload.id && !prev.find(c => c.id === payload.id)) {
+            return [...prev, payload];
           }
           return prev;
         });
@@ -51,13 +52,12 @@ export default function useConversations(send, clearMessages) {
         }
         return true;
       case 'turn_deleted':
-        return true; // handled by useChat
+        return true;
       case 'conversation_renamed':
-        if (payload.conversation) {
-          setConversations(prev => prev.map(c =>
-            c.id === payload.conversation.id ? payload.conversation : c
-          ));
-        }
+        // payload = { conversation_id, title, ok }
+        setConversations(prev => prev.map(c =>
+          c.id === payload.conversation_id ? { ...c, title: payload.title } : c
+        ));
         return true;
       case 'conversation_loaded':
         send('get_turns', { conversation_id: payload.conversation_id });
