@@ -501,6 +501,7 @@ async def websocket_chat(websocket: WebSocket):
 
                     # Auto-save conversation turn (via service)
                     if not partial:
+                        was_new_conv = current_conv_id is None
                         current_conv_id = conv_service.save_turn(
                             conv_id=current_conv_id,
                             user_text=user_text,
@@ -510,6 +511,14 @@ async def websocket_chat(websocket: WebSocket):
                         )
                         if current_conv_id:
                             turn_index = conv_db.get_turn_count(current_conv_id)
+                            # Notify frontend if a new conversation was auto-created
+                            if was_new_conv:
+                                conv = conv_db.get_conversation(current_conv_id)
+                                if conv:
+                                    await websocket.send_json({
+                                        "type": "conversation_created",
+                                        "payload": conv,
+                                    })
                         logger.debug(
                             "Saved turn in conv %s (%d trace steps)",
                             current_conv_id, len(session.get_trace()),

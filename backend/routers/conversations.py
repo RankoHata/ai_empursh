@@ -34,6 +34,8 @@ async def handle_conversations(
         elif msg_type == "create_conversation":
             conv = conv_db.create_conversation(title=payload.get("title", "新对话"))
             await _ws(websocket, "conversation_created", conv)
+            current_conv_id = conv["id"]
+            turn_index = 0
 
         elif msg_type == "list_conversations":
             convs = conv_db.list_conversations()

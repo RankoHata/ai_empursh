@@ -12,8 +12,8 @@ export default function useConversations(send, clearMessages) {
 
   const handleNewConv = useCallback(() => {
     clearMessages();
-    setActiveConvId(null);
-  }, [clearMessages]);
+    send('create_conversation', {});
+  }, [send, clearMessages]);
 
   const handleSelectConv = useCallback((convId) => {
     clearMessages();
