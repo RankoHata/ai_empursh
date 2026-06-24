@@ -36,6 +36,7 @@ from db.workspace_sync import (
 )
 from voice import stt
 from voice import tts as voice_tts
+from voice.extension import TTSExtension
 from agent import skills as skills_lib
 from agent.personality import get_manager, ensure_seeded
 from tools import create_default_registry
@@ -322,12 +323,12 @@ async def websocket_chat(websocket: WebSocket):
         on_tool_result=on_tool_result,
         on_thinking=lambda c: _send_thinking(websocket, c),
     )
-    tts_task: asyncio.Task | None = None
-    tts_enabled = True
+    # TTS extension (可插拔语音输出管线)
+    tts_extension = TTSExtension(voice_tts)
     compact_enabled = False
     current_conv_id: Optional[str] = None
     turn_index = 0
-    current_personality = personality_manager.get_default()  # active personality (DB record)
+    current_personality = personality_manager.get_default()
 
     # Per-connection: set WebSocket sender for secret tool callbacks
     tool_registry._ws_sender = websocket.send_json
@@ -383,9 +384,7 @@ async def websocket_chat(websocket: WebSocket):
                     continue
 
                 # Cancel any in-progress TTS
-                if tts_task and not tts_task.done():
-                    tts_task.cancel()
-                    tts_task = None
+                await tts_extension.cancel()
 
                 # --- Skill routing: match /command, load system prompt, filter tools ---
                 active_skill = None
@@ -486,11 +485,10 @@ async def websocket_chat(websocket: WebSocket):
                     # Send done AFTER all chunks + message_complete
                     _send_done(websocket)
 
-                    # Auto TTS (use clean content without emotion tag)
-                    if clean_content.strip() and tts_enabled:
-                        if tts_task and not tts_task.done():
-                            tts_task.cancel()
-                        tts_task = asyncio.create_task(_synthesize_and_send(websocket, clean_content))
+                    # Auto TTS (via extension pipeline)
+                    if clean_content.strip() and tts_extension.enabled:
+                        await tts_extension.cancel()
+                        await tts_extension.synthesize_and_send(websocket, clean_content)
 
                     # Auto-save conversation turn (use clean content)
                     if not partial:
@@ -531,9 +529,7 @@ async def websocket_chat(websocket: WebSocket):
 
             elif msg_type == "stop":
                 session.request_stop()
-                if tts_task and not tts_task.done():
-                    tts_task.cancel()
-                    tts_task = None
+                await tts_extension.cancel()
                 logger.info("Stop requested by client")
 
             # --- Voice handlers ---
@@ -585,8 +581,10 @@ async def websocket_chat(websocket: WebSocket):
                     })
 
             elif msg_type == "tts_enabled":
-                tts_enabled = payload.get("enabled", True)
-                logger.info("TTS enabled: %s", tts_enabled)
+                if payload.get("enabled", True):
+                    tts_extension.enable()
+                else:
+                    tts_extension.disable()
 
             elif msg_type == "compact_mode":
                 compact_enabled = payload.get("enabled", False)
@@ -766,8 +764,7 @@ async def websocket_chat(websocket: WebSocket):
     except Exception as exc:
         logger.error("Unexpected error in WebSocket handler: %s", exc)
     finally:
-        if tts_task and not tts_task.done():
-            tts_task.cancel()
+        await tts_extension.cancel()
         logger.info("Cleaning up session")
 
 
