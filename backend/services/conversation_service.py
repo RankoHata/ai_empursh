@@ -79,9 +79,9 @@ class ConversationService:
             logger.info("Conversation lost, auto-created %s", conv_id)
 
         conv_db.add_turn(
-            conversation_id=conv_id,
+            conv_id=conv_id,
             turn_index=turn_index,
-            user_content=user_text,
+            user_message=user_text,
             assistant_content=assistant_content,
             trace=trace,
         )
