@@ -44,6 +44,8 @@ from mcp import MCPManager
 from routers.notes import handle_secret_message, handle_public_notes
 from routers.personalities import handle_personalities
 from routers.conversations import handle_conversations, is_conversation_msg
+from routers.config import handle_config as handle_config_msg, is_config_msg
+from services.conversation_service import ConversationService
 from utils.markdown import strip_markdown
 
 # Initialize databases and seed data on startup
@@ -325,6 +327,8 @@ async def websocket_chat(websocket: WebSocket):
     )
     # TTS extension (可插拔语音输出管线)
     tts_extension = TTSExtension(voice_tts)
+    # Conversation service (对话生命周期)
+    conv_service = ConversationService()
     compact_enabled = False
     current_conv_id: Optional[str] = None
     turn_index = 0
@@ -355,6 +359,11 @@ async def websocket_chat(websocket: WebSocket):
 
             # --- Routers: notes ---
             if await handle_public_notes(websocket, msg_type, payload):
+                continue
+
+            # --- Routers: config ---
+            if is_config_msg(msg_type):
+                await handle_config_msg(websocket, msg_type, payload, config, voice_tts)
                 continue
 
             # --- Routers: conversations ---
@@ -490,31 +499,20 @@ async def websocket_chat(websocket: WebSocket):
                         await tts_extension.cancel()
                         await tts_extension.synthesize_and_send(websocket, clean_content)
 
-                    # Auto-save conversation turn (use clean content)
+                    # Auto-save conversation turn (via service)
                     if not partial:
-                        if current_conv_id is None:
-                            conv = conv_db.create_conversation(title=user_text)
-                            current_conv_id = conv["id"]
-                            turn_index = 0
-                            logger.info("Auto-created conversation %s", current_conv_id)
-                        elif not conv_db.get_conversation(current_conv_id):
-                            logger.warning("Conversation %s no longer exists, auto-creating new one", current_conv_id)
-                            conv = conv_db.create_conversation(title=user_text)
-                            current_conv_id = conv["id"]
-                            turn_index = 0
-
-                        trace = session.get_trace()
-                        conv_db.add_turn(
+                        current_conv_id = conv_service.save_turn(
                             conv_id=current_conv_id,
-                            turn_index=turn_index,
-                            user_message=user_text,
+                            user_text=user_text,
                             assistant_content=clean_content,
-                            trace=trace,
+                            trace=session.get_trace(),
+                            turn_index=turn_index,
                         )
-                        turn_index += 1
+                        if current_conv_id:
+                            turn_index = conv_db.get_turn_count(current_conv_id)
                         logger.debug(
-                            "Saved turn %d in conv %s (%d trace steps)",
-                            turn_index - 1, current_conv_id, len(trace),
+                            "Saved turn in conv %s (%d trace steps)",
+                            current_conv_id, len(session.get_trace()),
                         )
 
                     # Skill markdown preview (use clean content)
@@ -590,137 +588,6 @@ async def websocket_chat(websocket: WebSocket):
                 compact_enabled = payload.get("enabled", False)
                 logger.info("Compact mode: %s", compact_enabled)
 
-            elif msg_type == "delete_turn":
-                turn_index = payload.get("turn_index")
-                conv_id = payload.get("conversation_id", current_conv_id or "")
-                if conv_id and turn_index is not None:
-                    deleted = conv_db.delete_turn(conv_id, int(turn_index))
-                    await websocket.send_json({
-                        "type": "turn_deleted",
-                        "payload": {"conversation_id": conv_id, "turn_index": turn_index, "deleted": deleted},
-                    })
-                else:
-                    await websocket.send_json({
-                        "type": "error",
-                        "payload": {"message": "Missing conversation_id or turn_index"},
-                    })
-
-            elif msg_type == "get_config":
-                safe_cfg = {
-                    "model": {
-                        "base_url": config.model["base_url"],
-                        "api_key": "***" + config.model.get("api_key", "")[-4:] if len(config.model.get("api_key", "")) > 4 else "***",
-                        "model_name": config.model["model_name"],
-                        "max_tokens": config.model["max_tokens"],
-                    },
-                    "voice": {
-                        "stt_model": "base",
-                        "tts_engine": voice_tts.get_engine_name(),
-                        "tts_voice": config.voice.get("tts_voice", "zh-CN-XiaoxiaoNeural"),
-                    },
-                    "workspaces": config.workspaces,
-                    "user": config.user,
-                }
-                await websocket.send_json({"type": "config", "payload": safe_cfg})
-
-            elif msg_type == "update_config":
-                updates = payload.get("updates", {})
-                try:
-                    config.save(updates)
-                    await websocket.send_json({"type": "config_updated", "payload": {"success": True}})
-                except Exception as exc:
-                    await websocket.send_json({
-                        "type": "error", "payload": {"message": f"Config update failed: {exc}"},
-                    })
-
-            elif msg_type == "save_file":
-                content = payload.get("content", "")
-                filename = payload.get("filename", f"export_{_timestamp()}.md")
-                output_dir = Path(os.path.expanduser("~/Desktop"))
-                output_dir.mkdir(parents=True, exist_ok=True)
-                file_path = output_dir / filename
-                file_path.write_text(content, encoding="utf-8")
-                logger.info("File saved: %s", file_path)
-                await websocket.send_json({
-                    "type": "file_saved",
-                    "payload": {"file_path": str(file_path)},
-                })
-
-            # --- Conversation handlers ---
-            elif msg_type == "create_conversation":
-                conv = conv_db.create_conversation(title=payload.get("title", "新对话"))
-                await websocket.send_json({
-                    "type": "conversation_created",
-                    "payload": conv,
-                })
-
-            elif msg_type == "list_conversations":
-                convs = conv_db.list_conversations()
-                await websocket.send_json({
-                    "type": "conversations_list",
-                    "payload": {"conversations": convs},
-                })
-
-            elif msg_type == "delete_conversation":
-                conv_id = payload.get("conversation_id", "")
-                if conv_id:
-                    deleted = conv_db.delete_conversation(conv_id)
-                    # Clear current conversation if it was deleted
-                    if conv_id == current_conv_id:
-                        current_conv_id = None
-                        turn_index = 0
-                        logger.info("Current conversation %s was deleted, resetting session", conv_id)
-                    await websocket.send_json({
-                        "type": "conversation_deleted",
-                        "payload": {"conversation_id": conv_id, "deleted": deleted},
-                    })
-
-            elif msg_type == "rename_conversation":
-                conv_id = payload.get("conversation_id", "")
-                title = payload.get("title", "").strip()
-                if conv_id and title:
-                    ok = conv_db.update_conversation_title(conv_id, title)
-                    await websocket.send_json({
-                        "type": "conversation_renamed",
-                        "payload": {"conversation_id": conv_id, "title": title, "ok": ok},
-                    })
-
-            elif msg_type == "get_turns":
-                conv_id = payload.get("conversation_id", current_conv_id or "")
-                if conv_id:
-                    turns = conv_db.get_turns(conv_id)
-                    await websocket.send_json({
-                        "type": "turns_list",
-                        "payload": {"turns": turns, "conversation_id": conv_id},
-                    })
-
-            elif msg_type == "load_conversation":
-                conv_id = payload.get("conversation_id", "")
-                if conv_id:
-                    conv = conv_db.get_conversation(conv_id)
-                    if conv:
-                        messages = conv_db.build_history_from_turns(conv_id)
-                        session.load_history(messages)
-                        current_conv_id = conv_id
-                        turn_index = conv_db.get_turn_count(conv_id)
-                        logger.info(
-                            "Loaded conversation %s: %d turns, %d messages",
-                            conv_id, turn_index, len(messages),
-                        )
-                        await websocket.send_json({
-                            "type": "conversation_loaded",
-                            "payload": {
-                                "conversation": conv,
-                                "turn_count": turn_index,
-                            },
-                        })
-                    else:
-                        await websocket.send_json({
-                            "type": "error",
-                            "payload": {"message": f"Conversation not found: {conv_id}"},
-                        })
-
-            # --- Workspace sync handlers ---
             elif msg_type == "sync_workspace":
                 ws_index = payload.get("workspace_index", 0)
                 if 0 <= ws_index < len(config.workspaces):
