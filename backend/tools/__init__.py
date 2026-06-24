@@ -181,8 +181,9 @@ class ToolRegistry(ToolProvider):
 # ------------------------------------------------------------------
 
 def create_default_registry() -> ToolRegistry:
-    """Create a ToolRegistry pre-loaded with the default note tools."""
+    """Create a ToolRegistry pre-loaded with the default tools."""
     from tools.notes import NOTE_TOOLS
+    from tools.time_tools import TIME_TOOLS
     registry = ToolRegistry()
-    registry.register_all(NOTE_TOOLS)
+    registry.register_all(NOTE_TOOLS + TIME_TOOLS)
     return registry

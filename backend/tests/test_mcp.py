@@ -275,7 +275,7 @@ class TestStdioClientIntegration:
             await client.connect()
             result = await client.call_tool("get_time", {"format": "iso"})
             assert "timestamp" in result
-            assert result["format"] == "iso"
+            assert result["format"] == "iso_with_tz"
         finally:
             await client.disconnect()
 

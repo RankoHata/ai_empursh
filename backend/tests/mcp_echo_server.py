@@ -125,14 +125,16 @@ def handle_request(req: dict) -> dict | None:
                     },
                 }
             else:
-                now = datetime.now().isoformat()
+                now = datetime.now().astimezone()
+                utc_offset = now.strftime("%z")
+                now_str = now.strftime("%Y-%m-%dT%H:%M:%S") + utc_offset
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
                     "result": {
-                        "content": [{"type": "text", "text": now}],
-                        "timestamp": now,
-                        "format": "iso",
+                        "content": [{"type": "text", "text": now_str}],
+                        "timestamp": now_str,
+                        "format": "iso_with_tz",
                     },
                 }
         else:
