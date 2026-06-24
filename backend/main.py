@@ -313,7 +313,7 @@ async def websocket_chat(websocket: WebSocket):
     from mcp.provider import MCPToolProvider
     tool_dispatcher = ToolDispatcher()
     tool_dispatcher.register(tool_registry)
-    if app.state.mcp_manager:
+    if getattr(app.state, 'mcp_manager', None):
         tool_dispatcher.register(MCPToolProvider(app.state.mcp_manager))
 
     session = ChatSession(
