@@ -42,6 +42,7 @@ from tools import create_default_registry
 from mcp import MCPManager
 from routers.notes import handle_secret_message, handle_public_notes
 from routers.personalities import handle_personalities
+from routers.conversations import handle_conversations, is_conversation_msg
 from utils.markdown import strip_markdown
 
 # Initialize databases and seed data on startup
@@ -353,6 +354,13 @@ async def websocket_chat(websocket: WebSocket):
 
             # --- Routers: notes ---
             if await handle_public_notes(websocket, msg_type, payload):
+                continue
+
+            # --- Routers: conversations ---
+            if is_conversation_msg(msg_type):
+                current_conv_id, turn_index = await handle_conversations(
+                    websocket, msg_type, payload, session, current_conv_id, turn_index
+                )
                 continue
 
             # --- Routers: personalities ---
