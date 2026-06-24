@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Database paths
 # ---------------------------------------------------------------------------
-DATA_DIR = Path(__file__).parent.parent / "data"
+import os as _os
+_DATA_OVERRIDE = _os.environ.get("TEST_DATA_DIR")
+DATA_DIR = Path(_DATA_OVERRIDE) if _DATA_OVERRIDE else Path(__file__).parent.parent / "data"
 DATA_DB = DATA_DIR / "data.db"
 SECRET_DB = DATA_DIR / "secret.db"
 OLD_DB = DATA_DIR / "notes.db"
