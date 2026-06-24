@@ -1,19 +1,18 @@
 // src/renderer/components/Avatar.jsx
 import React, { useRef, useEffect, useState } from 'react';
 
-// 模型注册表 — key → { skel, atlas }
-const AVATAR_ASSETS = {
-  default: { skel: 'c017_00/c017_00.skel', atlas: 'c017_00/c017_00.atlas' },
-  alt:    { skel: 'c017_02/c017_02_00.skel', atlas: 'c017_02/c017_02_00.atlas' },
+// Vite 只在静态字符串字面量时转换 new URL(..., import.meta.url)
+// 因此必须在模块顶层预计算所有 URL，不能在运行时拼接
+const DEFAULT_SKEL  = new URL('../../../assets/spine/c017_00/c017_00.skel', import.meta.url).href;
+const DEFAULT_ATLAS = new URL('../../../assets/spine/c017_00/c017_00.atlas', import.meta.url).href;
+const ALT_SKEL      = new URL('../../../assets/spine/c017_02/c017_02_00.skel', import.meta.url).href;
+const ALT_ATLAS     = new URL('../../../assets/spine/c017_02/c017_02_00.atlas', import.meta.url).href;
+
+const MODEL_URLS = {
+  default: { skel: DEFAULT_SKEL, atlas: DEFAULT_ATLAS },
+  alt:     { skel: ALT_SKEL,     atlas: ALT_ATLAS },
 };
 
-/**
- * Spine 2D Avatar 组件。
- * @param {string} state   - 情绪状态
- * @param {string} model   - 模型标识: 'default' | 'alt'
- * @param {string} skelUrl - 自定义 .skel URL (覆盖 model)
- * @param {string} atlasUrl- 自定义 .atlas URL (覆盖 model)
- */
 function Avatar({ state = 'idle', model = 'default', skelUrl, atlasUrl }) {
   const containerRef = useRef(null);
   const mgrRef = useRef(null);
@@ -21,8 +20,7 @@ function Avatar({ state = 'idle', model = 'default', skelUrl, atlasUrl }) {
 
   useEffect(() => {
     let cancelled = false;
-    const m = model || 'default';
-    const assets = AVATAR_ASSETS[m] || AVATAR_ASSETS.default;
+    const urls = MODEL_URLS[model] || MODEL_URLS.default;
 
     async function initAvatar() {
       try {
@@ -31,13 +29,11 @@ function Avatar({ state = 'idle', model = 'default', skelUrl, atlasUrl }) {
 
         const mgr = new AvatarManager();
         mgrRef.current = mgr;
-
-        const resolvedSkel = skelUrl
-          || new URL(`../../../assets/spine/${assets.skel}`, import.meta.url).href;
-        const resolvedAtlas = atlasUrl
-          || new URL(`../../../assets/spine/${assets.atlas}`, import.meta.url).href;
-
-        await mgr.init(containerRef.current, resolvedSkel, resolvedAtlas);
+        await mgr.init(
+          containerRef.current,
+          skelUrl || urls.skel,
+          atlasUrl || urls.atlas,
+        );
         if (!cancelled) setStatus('ready');
       } catch (err) {
         console.error('[Avatar] Init failed:', err);
@@ -75,4 +71,5 @@ function Avatar({ state = 'idle', model = 'default', skelUrl, atlasUrl }) {
 }
 
 export default React.memo(Avatar);
+
 
